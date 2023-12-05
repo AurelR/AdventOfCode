@@ -29,7 +29,6 @@ fn part2(input: &str) -> String {
                 length: c[1],
             }],
         })
-        .take(1)
         .map(|ranges| mappings.iter().fold(ranges, |ra, m| m.map_ranges(ra)))
         .map(|r| r.min())
         .min()
@@ -99,7 +98,7 @@ impl SingleMapping {
                         }],
                         Some(Range {
                             begin: self.destination,
-                            length: range.begin + self.length - self.source,
+                            length: range.begin + range.length - self.source,
                         }),
                     )
                 }
@@ -141,7 +140,7 @@ impl Mapping {
 
     fn map_ranges(&self, ranges: Ranges) -> Ranges {
         let mut result = Vec::new();
-        'outer: for range in ranges.ranges {
+        for range in ranges.ranges {
             let mut sub_ranges = vec![range];
             for m in &self.maps {
                 let mut new_sub_ranges = Vec::new();
@@ -155,29 +154,6 @@ impl Mapping {
                 sub_ranges = new_sub_ranges;
             }
             result.append(&mut sub_ranges);
-
-            //     let (unmapped_ranges, mapped_ranges) = m.map_range(r);
-            //     if let Some(mappped_range) =  mapped_ranges {
-            //         result.push(mappped_range)
-            //     }
-            //     if unmapped_ranges.is_empty() {
-            //         continue 'outer;
-            //     }
-
-            //      {
-            //         (None, Some(mapped_range)) => {
-            //             result.push(mapped_range);
-
-            //         }
-            //         (Some(unmapped_range), None) => r = unmapped_range,
-            //         (Some(unmapped_range), Some(mapped_range)) => {
-            //             result.push(mapped_range);
-            //             r = unmapped_range;
-            //         }
-            //         (None, None) => panic!("Should not happend"),
-            //     }
-            // }
-            // result.push(r);
         }
         Ranges { ranges: result }
     }
@@ -400,6 +376,42 @@ humidity-to-location map:
             mapping.map_range(Range {
                 begin: 108,
                 length: 7
+            })
+        );
+
+        // begin overlap
+        assert_eq!(
+            (
+                vec![Range {
+                    begin: 95,
+                    length: 3
+                }],
+                Some(Range {
+                    begin: 50,
+                    length: 4
+                })
+            ),
+            mapping.map_range(Range {
+                begin: 95,
+                length: 7
+            })
+        );
+
+        // end overlap
+        assert_eq!(
+            (
+                vec![Range {
+                    begin: 108,
+                    length: 4
+                }],
+                Some(Range {
+                    begin: 52,
+                    length: 8
+                })
+            ),
+            mapping.map_range(Range {
+                begin: 100,
+                length: 12
             })
         );
 
