@@ -38,9 +38,7 @@ fn part2(input: &str) -> String {
 }
 
 fn vec_to_num(v: Vec<NumTy>) -> NumTy {
-    v.into_iter().fold(0, |s, t| {
-        (s.to_string() + &t.to_string()).parse::<NumTy>().unwrap()
-    })
+    v.iter().map(NumTy::to_string).collect::<String>().parse().unwrap()
 }
 
 fn parse_input(input: &str) -> nom::IResult<&str, (Vec<NumTy>, Vec<NumTy>)> {
