@@ -11,19 +11,22 @@ fn main() {
 fn part1(input: &str) -> String {
     let (directions, map) = parse_input(input).unwrap().1;
 
-    let mut count = 0;
-    let mut node = "AAA";
-    let mut it = directions.into_iter().cycle();
-
-    while node != "ZZZ" {
-        count += 1;
-        node = match it.next() {
-            Some(Direction::Left) => map.get(node).unwrap().0,
-            Some(Direction::Right) => map.get(node).unwrap().1,
-            None => unreachable!(),
-        };
-    }
-    count.to_string()
+    directions
+        .into_iter()
+        .cycle()
+        .scan("AAA", |node, direction| {
+            if *node == "ZZZ" {
+                None
+            } else {
+                *node = match direction {
+                    Direction::Left => map.get(node).unwrap().0,
+                    Direction::Right => map.get(node).unwrap().1,
+                };
+                Some(())
+            }
+        })
+        .count()
+        .to_string()
 }
 
 fn part2(input: &str) -> String {
