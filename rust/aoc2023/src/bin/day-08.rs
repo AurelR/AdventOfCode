@@ -35,24 +35,23 @@ fn part2(input: &str) -> String {
     let nodes = Vec::from_iter(map.keys().copied().filter(|n| n.as_bytes()[2] == b'A'));
     let iter = directions.into_iter().cycle();
 
-    let mut counts = Vec::new();
-    for node in nodes {
-        let mut it = iter.clone();
-        let mut count: u64 = 0;
-        let mut n = node;
-
-        while n.as_bytes()[2] != b'Z' {
-            count += 1;
-            n = match it.next() {
-                Some(Direction::Left) => map.get(n).unwrap().0,
-                Some(Direction::Right) => map.get(n).unwrap().1,
-                None => unreachable!(),
-            };
-        }
-        counts.push(count);
-    }
-    counts
+    nodes
         .into_iter()
+        .map(|start_node| {
+            iter.clone()
+                .scan(start_node, |node, direction| {
+                    if node.as_bytes()[2] == b'Z' {
+                        None
+                    } else {
+                        *node = match direction {
+                            Direction::Left => map.get(node).unwrap().0,
+                            Direction::Right => map.get(node).unwrap().1,
+                        };
+                        Some(())
+                    }
+                })
+                .count()
+        })
         .fold(1, |n1, n2| num::integer::lcm(n1, n2))
         .to_string()
 }
