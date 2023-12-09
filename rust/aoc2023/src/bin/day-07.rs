@@ -75,19 +75,19 @@ fn parse_card(input: &str) -> nom::IResult<&str, Card> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Card {
-    A = 14,
-    K = 13,
-    Q = 12,
-    J = 11,
-    T = 10,
-    N9 = 9,
-    N8 = 8,
-    N7 = 7,
-    N6 = 6,
-    N5 = 5,
-    N4 = 4,
-    N3 = 3,
-    N2 = 2,
+    N2,
+    N3,
+    N4,
+    N5,
+    N6,
+    N7,
+    N8,
+    N9,
+    T,
+    J,
+    Q,
+    K,
+    A,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -109,77 +109,49 @@ struct Hand {
     bid: NumTy,
 }
 
+impl HandValue {
+    fn from_counts(counts: &[NumTy]) -> Self {
+        match counts {
+            [5] => HandValue::Five,
+            [4, 1] => HandValue::Four,
+            [3, 2] => HandValue::FullHouse,
+            [3, 1, 1] => HandValue::Three,
+            [2, 2, 1] => HandValue::TwoPair,
+            [2, 1, 1, 1] => HandValue::OnePair,
+            [1, 1, 1, 1, 1] => HandValue::HighCard,
+            _ => panic!("Invalid Counts"),
+        }
+    }
+}
+
 impl Hand {
     fn from_tuple(((c1, c2, c3, c4, c5), bid): ((Card, Card, Card, Card, Card), NumTy)) -> Hand {
         let cards = [c1, c2, c3, c4, c5];
         let mut counts1 = BTreeMap::new();
-        for c in cards {
-            *counts1.entry(c).or_insert(0) += 1
-        }
-        let hand_value1 = match counts1.len() {
-            5 => HandValue::HighCard,
-            4 => HandValue::OnePair,
-            3 => {
-                if *counts1.values().max().unwrap() == 3 {
-                    HandValue::Three
-                } else {
-                    HandValue::TwoPair
-                }
-            }
-            2 => match counts1.values().next().unwrap() {
-                4 | 1 => HandValue::Four,
-                3 | 2 => HandValue::FullHouse,
-                _ => unreachable!(),
-            },
-            1 => HandValue::Five,
-            _ => unreachable!(),
-        };
-
         let mut counts2 = BTreeMap::new();
         let mut jokers = 0;
         for c in cards {
+            *counts1.entry(c).or_insert(0) += 1;
             if c == Card::J {
                 jokers += 1;
             } else {
-                *counts2.entry(c).or_insert(0) += 1
+                *counts2.entry(c).or_insert(0) += 1;
             }
         }
-
-        let hand_value2 = match jokers {
-            5 => HandValue::Five,
-            4 => HandValue::Five,
-            3 => match counts2.len() {
-                1 => HandValue::Five,
-                2 => HandValue::Four,
-                _ => unreachable!(),
-            },
-            2 => match counts2.len() {
-                1 => HandValue::Five,
-                2 => HandValue::Four,
-                3 => HandValue::Three,
-                _ => unreachable!(),
-            },
-            1 => match counts2.len() {
-                1 => HandValue::Five,
-                2 => {
-                    if *counts2.values().max().unwrap() == 3 {
-                        HandValue::Four
-                    } else {
-                        HandValue::FullHouse
-                    }
-                }
-                3 => HandValue::Three,
-                4 => HandValue::OnePair,
-                _ => unreachable!(),
-            },
-            0 => hand_value1,
-            _ => unreachable!(),
-        };
+        let mut counts1 = counts1.values().copied().collect::<Vec<_>>();
+        counts1.sort_by(|e1, e2| e2.cmp(e1));
+        let mut counts2 = counts2.values().copied().collect::<Vec<_>>();
+        counts2.sort_by(|e1, e2| e2.cmp(e1));
+        if jokers != 5 {
+            counts2[0] += jokers;
+        } else {
+            counts2.push(jokers);
+        }
 
         Hand {
             cards,
-            hand_value1,
-            hand_value2,
+            hand_value1: HandValue::from_counts(&counts1),
+            hand_value2: HandValue::from_counts(&counts2),
             bid,
         }
     }
@@ -187,25 +159,26 @@ impl Hand {
 
 impl Hand {
     fn cmp1(&self, other: &Self) -> Ordering {
-        match self.hand_value1.cmp(&other.hand_value1) {
-            Ordering::Equal => self.cards.cmp(&other.cards),
-            o => o,
-        }
+        (self.hand_value1, self.cards).cmp(&(other.hand_value1, other.cards))
     }
 
     fn cmp2(&self, other: &Self) -> Ordering {
-        match self.hand_value2.cmp(&other.hand_value2) {
-            Ordering::Equal => self
-                .cards
-                .iter()
-                .zip(other.cards.iter())
-                .find_map(|(c1, c2)| match c1.value2().cmp(&c2.value2()) {
-                    Ordering::Equal => None,
-                    o => Some(o),
-                })
-                .unwrap_or(Ordering::Equal),
-            o => o,
-        }
+        (
+            self.hand_value2,
+            self.cards[0].value2(),
+            self.cards[1].value2(),
+            self.cards[2].value2(),
+            self.cards[3].value2(),
+            self.cards[4].value2(),
+        )
+            .cmp(&(
+                other.hand_value2,
+                other.cards[0].value2(),
+                other.cards[1].value2(),
+                other.cards[2].value2(),
+                other.cards[3].value2(),
+                other.cards[4].value2(),
+            ))
     }
 }
 
