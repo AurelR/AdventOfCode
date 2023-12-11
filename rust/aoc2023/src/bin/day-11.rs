@@ -1,4 +1,4 @@
-type NumTy = i32;
+type NumTy = i64;
 type Position = (NumTy, NumTy);
 use std::collections::BTreeSet;
 
@@ -17,16 +17,19 @@ fn part1(input: &str) -> String {
     data.iter()
         .tuple_combinations()
         .map(|(p1, p2)| p1.0.abs_diff(p2.0) + p1.1.abs_diff(p2.1))
-        .sum::<u32>()
+        .sum::<u64>()
         .to_string()
 }
 
 fn part2(input: &str) -> String {
-    let _data = parse_input(input);
-    "".to_string()
+    let data = parse_input2(input, 1_000_000);
+    data.iter()
+        .tuple_combinations()
+        .map(|(p1, p2)| p1.0.abs_diff(p2.0) + p1.1.abs_diff(p2.1))
+        .sum::<u64>()
+        .to_string()
 }
 
-#[allow(unused_imports)]
 fn parse_input(input: &str) -> BTreeSet<Position> {
     let mut postions = Vec::new();
     let mut empty_cols: Vec<bool> = vec![true; input.lines().next().unwrap().len()];
@@ -59,6 +62,45 @@ fn parse_input(input: &str) -> BTreeSet<Position> {
         for pos in postions.iter_mut() {
             if pos.0 > (c + i) as NumTy {
                 pos.0 += 1;
+            }
+        }
+    }
+    BTreeSet::from_iter(postions.into_iter())
+}
+
+fn parse_input2(input: &str, expansion: NumTy) -> BTreeSet<Position> {
+    let mut postions = Vec::new();
+    let mut empty_cols: Vec<bool> = vec![true; input.lines().next().unwrap().len()];
+    let mut y = 0;
+    for line in input.lines() {
+        let mut empty_row = true;
+        for (x, c) in line.as_bytes().iter().enumerate() {
+            match &c {
+                b'#' => {
+                    empty_row = false;
+                    empty_cols[x] = false;
+                    postions.push((x as NumTy, y));
+                }
+                b'.' => {}
+                _ => panic!("Unexpected input"),
+            }
+        }
+        if empty_row {
+            y += expansion;
+        } else {
+            y += 1;
+        }
+    }
+
+    for (i, c) in empty_cols
+        .into_iter()
+        .enumerate()
+        .filter_map(|(col, empty)| if empty { Some(col) } else { None })
+        .enumerate()
+    {
+        for pos in postions.iter_mut() {
+            if pos.0 > (c as NumTy) + (i as NumTy) * (expansion - 1) {
+                pos.0 += expansion - 1;
             }
         }
     }
@@ -132,10 +174,21 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "wrong expansion"]
     fn test_part2() {
         let input = "\
+...#......
+.......#..
+#.........
+..........
+......#...
+.#........
+.........#
+..........
+.......#..
+#...#.....
 ";
         let result = part2(input);
-        assert_eq!(result, "todo");
+        assert_eq!(result, "8410");
     }
 }
