@@ -1,6 +1,5 @@
-type NumTy = i64;
+type NumTy = usize;
 type Position = (NumTy, NumTy);
-use std::collections::BTreeSet;
 
 use itertools::Itertools;
 
@@ -13,98 +12,80 @@ fn main() {
 }
 
 fn part1(input: &str) -> String {
-    let data = parse_input(input);
-    data.iter()
-        .tuple_combinations()
-        .map(|(p1, p2)| p1.0.abs_diff(p2.0) + p1.1.abs_diff(p2.1))
-        .sum::<u64>()
-        .to_string()
+    let positions = parse_input(input);
+    let positions = expand_space(positions, 2);
+    sum_all_distance(positions).to_string()
 }
 
 fn part2(input: &str) -> String {
-    let data = parse_input2(input, 1_000_000);
-    data.iter()
-        .tuple_combinations()
-        .map(|(p1, p2)| p1.0.abs_diff(p2.0) + p1.1.abs_diff(p2.1))
-        .sum::<u64>()
-        .to_string()
+    let positions = parse_input(input);
+    let positions = expand_space(positions, 1_000_000);
+    sum_all_distance(positions).to_string()
 }
 
-fn parse_input(input: &str) -> BTreeSet<Position> {
-    let mut postions = Vec::new();
-    let mut empty_cols: Vec<bool> = vec![true; input.lines().next().unwrap().len()];
-    let mut y = 0;
-    for line in input.lines() {
-        let mut empty_row = true;
-        for (x, c) in line.as_bytes().iter().enumerate() {
-            match &c {
-                b'#' => {
-                    empty_row = false;
-                    empty_cols[x] = false;
-                    postions.push((x as NumTy, y));
-                }
-                b'.' => {}
-                _ => panic!("Unexpected input"),
-            }
-        }
-        if empty_row {
-            y += 1;
-        }
-        y += 1;
+fn parse_input(input: &str) -> Vec<Position> {
+    input
+        .lines()
+        .enumerate()
+        .flat_map(|(y, line)| {
+            line.as_bytes()
+                .iter()
+                .enumerate()
+                .filter_map(move |(x, c)| match &c {
+                    b'#' => Some((x as NumTy, y as NumTy)),
+                    b'.' => None,
+                    _ => panic!("Unexpected input"),
+                })
+        })
+        .collect()
+}
+
+fn expand_space(mut positions: Vec<Position>, expansion: NumTy) -> Vec<Position> {
+    let max_x = positions.iter().map(|pos| pos.0).max().unwrap();
+    let max_y = positions.iter().map(|pos| pos.1).max().unwrap();
+    let mut empty_x = vec![true; max_x + 1];
+    let mut empty_y = vec![true; max_y + 1];
+
+    for pos in positions.iter() {
+        empty_x[pos.0] = false;
+        empty_y[pos.1] = false;
     }
 
-    for (i, c) in empty_cols
+    for (i, x) in empty_x
         .into_iter()
         .enumerate()
         .filter_map(|(col, empty)| if empty { Some(col) } else { None })
         .enumerate()
     {
-        for pos in postions.iter_mut() {
-            if pos.0 > (c + i) as NumTy {
-                pos.0 += 1;
-            }
-        }
-    }
-    BTreeSet::from_iter(postions.into_iter())
-}
-
-fn parse_input2(input: &str, expansion: NumTy) -> BTreeSet<Position> {
-    let mut postions = Vec::new();
-    let mut empty_cols: Vec<bool> = vec![true; input.lines().next().unwrap().len()];
-    let mut y = 0;
-    for line in input.lines() {
-        let mut empty_row = true;
-        for (x, c) in line.as_bytes().iter().enumerate() {
-            match &c {
-                b'#' => {
-                    empty_row = false;
-                    empty_cols[x] = false;
-                    postions.push((x as NumTy, y));
-                }
-                b'.' => {}
-                _ => panic!("Unexpected input"),
-            }
-        }
-        if empty_row {
-            y += expansion;
-        } else {
-            y += 1;
-        }
-    }
-
-    for (i, c) in empty_cols
-        .into_iter()
-        .enumerate()
-        .filter_map(|(col, empty)| if empty { Some(col) } else { None })
-        .enumerate()
-    {
-        for pos in postions.iter_mut() {
-            if pos.0 > (c as NumTy) + (i as NumTy) * (expansion - 1) {
+        for pos in positions.iter_mut() {
+            if pos.0 > (x as NumTy) + (i as NumTy) * (expansion - 1) {
                 pos.0 += expansion - 1;
             }
         }
     }
-    BTreeSet::from_iter(postions.into_iter())
+
+    for (i, y) in empty_y
+        .into_iter()
+        .enumerate()
+        .filter_map(|(col, empty)| if empty { Some(col) } else { None })
+        .enumerate()
+    {
+        for pos in positions.iter_mut() {
+            if pos.1 > (y as NumTy) + (i as NumTy) * (expansion - 1) {
+                pos.1 += expansion - 1;
+            }
+        }
+    }
+
+    positions
+}
+
+fn sum_all_distance(positions: Vec<Position>) -> NumTy {
+    positions
+        .into_iter()
+        .tuple_combinations()
+        .map(|(p1, p2)| p1.0.abs_diff(p2.0) + p1.1.abs_diff(p2.1))
+        .sum()
 }
 
 #[cfg(test)]
@@ -112,7 +93,7 @@ mod tests {
     use crate::*;
 
     #[test]
-    fn test_expansion() {
+    fn test_expand_space() {
         let input = "\
 ...#......
 .......#..
@@ -139,19 +120,8 @@ mod tests {
 .........#...
 #....#.......
 ";
-        let mut positions = BTreeSet::new();
-        for (y, line) in expected.lines().enumerate() {
-            for (x, c) in line.as_bytes().iter().enumerate() {
-                match &c {
-                    b'#' => {
-                        positions.insert((x as NumTy, y as NumTy));
-                    }
-                    b'.' => {}
-                    _ => panic!("Unexpected input"),
-                }
-            }
-        }
-        let result = parse_input(input);
+        let positions = parse_input(expected);
+        let result = expand_space(parse_input(input), 2);
         assert_eq!(result, positions);
     }
 
@@ -174,8 +144,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "wrong expansion"]
-    fn test_part2() {
+    fn test_part2a() {
         let input = "\
 ...#......
 .......#..
@@ -188,7 +157,29 @@ mod tests {
 .......#..
 #...#.....
 ";
-        let result = part2(input);
+        let positions = parse_input(input);
+        let positions = expand_space(positions, 10);
+        let result = sum_all_distance(positions).to_string();
+        assert_eq!(result, "1030");
+    }
+
+    #[test]
+    fn test_part2b() {
+        let input = "\
+...#......
+.......#..
+#.........
+..........
+......#...
+.#........
+.........#
+..........
+.......#..
+#...#.....
+";
+        let positions = parse_input(input);
+        let positions = expand_space(positions, 100);
+        let result = sum_all_distance(positions).to_string();
         assert_eq!(result, "8410");
     }
 }
