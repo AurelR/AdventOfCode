@@ -19,13 +19,13 @@ fn part1(input: &str) -> String {
         .find(|(_pos, pipe)| if let Pipe::Start = pipe { true } else { false })
         .unwrap()
         .0;
-    
+
     let mut dir = find_starting_direction(start_pos, &map);
     let mut pos = start_pos;
     let mut count = 1;
 
     loop {
-        pos = (pos.0 + dir.0,pos.1 + dir.1);
+        pos = (pos.0 + dir.0, pos.1 + dir.1);
         let pipe = map.get(&pos).unwrap();
         if let Pipe::Start = pipe {
             break;
@@ -38,8 +38,38 @@ fn part1(input: &str) -> String {
 }
 
 fn part2(input: &str) -> String {
-    let _data = parse_input(input).unwrap().1;
-    "".to_string()
+    let data = parse_input(input).unwrap().1;
+    let map = convert_input(data);
+    let start_pos = *map
+        .iter()
+        .find(|(_pos, pipe)| if let Pipe::Start = pipe { true } else { false })
+        .unwrap()
+        .0;
+
+    let mut dir = find_starting_direction(start_pos, &map);
+    let mut pos = start_pos;
+    let mut path = Vec::new();
+    path.push(pos);
+
+    loop {
+        pos = (pos.0 + dir.0, pos.1 + dir.1);
+        path.push(pos);
+        let pipe = map.get(&pos).unwrap();
+        if let Pipe::Start = pipe {
+            break;
+        };
+        dir = pipe.follow(dir).unwrap();
+    }
+
+    let border = (path.len() - 1) as NumTy;
+    // Shoelace formula
+    let area = path
+        .windows(2)
+        .map(|p| p[0].0 * p[1].1 - p[1].0 * p[0].1)
+        .sum::<NumTy>();
+    // Picks Theorem
+    let interior = (area.abs() - border) / 2 + 1;
+    interior.to_string()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -153,11 +183,55 @@ LJ...
     }
 
     #[test]
-    #[ignore = "not yet implemented"]
-    fn test_part2() {
+    fn test_part2a() {
         let input = "\
+...........
+.S-------7.
+.|F-----7|.
+.||.....||.
+.||.....||.
+.|L-7.F-J|.
+.|..|.|..|.
+.L--J.L--J.
+...........
 ";
         let result = part2(input);
-        assert_eq!(result, "todo");
+        assert_eq!(result, "4");
+    }
+
+    #[test]
+    fn test_part2b() {
+        let input = "\
+.F----7F7F7F7F-7....
+.|F--7||||||||FJ....
+.||.FJ||||||||L7....
+FJL7L7LJLJ||LJ.L-7..
+L--J.L7...LJS7F-7L7.
+....F-J..F7FJ|L7L7L7
+....L7.F7||L7|.L7L7|
+.....|FJLJ|FJ|F7|.LJ
+....FJL-7.||.||||...
+....L---J.LJ.LJLJ...
+";
+        let result = part2(input);
+        assert_eq!(result, "8");
+    }
+
+    #[test]
+    fn test_part2c() {
+        let input = "\
+FF7FSF7F7F7F7F7F---7
+L|LJ||||||||||||F--J
+FL-7LJLJ||||||LJL-77
+F--JF--7||LJLJ7F7FJ-
+L---JF-JLJ.||-FJLJJ7
+|F|F-JF---7F7-L7L|7|
+|FFJF7L7F-JF7|JL---7
+7-L-JL7||F7|L7F-7F7|
+L.L7LFJ|||||FJL7||LJ
+L7JLJL-JLJLJL--JLJ.L
+";
+        let result = part2(input);
+        assert_eq!(result, "10");
     }
 }
