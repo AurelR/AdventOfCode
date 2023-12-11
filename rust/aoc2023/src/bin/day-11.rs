@@ -51,30 +51,28 @@ fn expand_space(mut positions: Vec<Position>, expansion: NumTy) -> Vec<Position>
         empty_y[pos.1] = false;
     }
 
-    for (i, x) in empty_x
+    let expand_x = empty_x
         .into_iter()
-        .enumerate()
-        .filter_map(|(col, empty)| if empty { Some(col) } else { None })
-        .enumerate()
-    {
-        for pos in positions.iter_mut() {
-            if pos.0 > (x as NumTy) + (i as NumTy) * (expansion - 1) {
-                pos.0 += expansion - 1;
-            }
-        }
-    }
+        .scan(0, |add, empty| {
+            if empty {
+                *add += expansion - 1
+            };
+            Some(*add)
+        })
+        .collect::<Vec<_>>();
+    let expand_y = empty_y
+        .into_iter()
+        .scan(0, |add, empty| {
+            if empty {
+                *add += expansion - 1
+            };
+            Some(*add)
+        })
+        .collect::<Vec<_>>();
 
-    for (i, y) in empty_y
-        .into_iter()
-        .enumerate()
-        .filter_map(|(col, empty)| if empty { Some(col) } else { None })
-        .enumerate()
-    {
-        for pos in positions.iter_mut() {
-            if pos.1 > (y as NumTy) + (i as NumTy) * (expansion - 1) {
-                pos.1 += expansion - 1;
-            }
-        }
+    for pos in positions.iter_mut() {
+        pos.0 += expand_x[pos.0];
+        pos.1 += expand_y[pos.1];
     }
 
     positions
