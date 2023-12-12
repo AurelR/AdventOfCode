@@ -20,19 +20,19 @@ fn part1(input: &str) -> String {
         .unwrap()
         .0;
 
-    let mut dir = find_starting_direction(start_pos, &map);
-    let mut pos = start_pos;
-    let mut count = 1;
+    let start_dir = find_starting_direction(start_pos, &map);
 
-    loop {
-        pos = (pos.0 + dir.0, pos.1 + dir.1);
-        let pipe = map.get(&pos).unwrap();
+    let count = std::iter::successors(Some((start_pos, start_dir)), |(pos, dir)| {
+        let new_pos = (pos.0 + dir.0, pos.1 + dir.1);
+        let pipe = map.get(&new_pos).unwrap();
         if let Pipe::Start = pipe {
-            break;
-        };
-        count += 1;
-        dir = pipe.follow(dir).unwrap();
-    }
+            None
+        } else {
+            let new_dir = pipe.follow(*dir).unwrap();
+            Some((new_pos, new_dir))
+        }
+    })
+    .count();
 
     (count / 2).to_string()
 }
@@ -46,20 +46,20 @@ fn part2(input: &str) -> String {
         .unwrap()
         .0;
 
-    let mut dir = find_starting_direction(start_pos, &map);
-    let mut pos = start_pos;
-    let mut path = Vec::new();
-    path.push(pos);
-
-    loop {
-        pos = (pos.0 + dir.0, pos.1 + dir.1);
-        path.push(pos);
-        let pipe = map.get(&pos).unwrap();
+    let start_dir = find_starting_direction(start_pos, &map);
+    let path = std::iter::successors(Some((start_pos, start_dir)), |(pos, dir)| {
+        let new_pos = (pos.0 + dir.0, pos.1 + dir.1);
+        let pipe = map.get(&new_pos).unwrap();
         if let Pipe::Start = pipe {
-            break;
-        };
-        dir = pipe.follow(dir).unwrap();
-    }
+            None
+        } else {
+            let new_dir = pipe.follow(*dir).unwrap();
+            Some((new_pos, new_dir))
+        }
+    })
+    .map(|(pos, _dir)| pos)
+    .chain(std::iter::once(start_pos))
+    .collect::<Vec<_>>();
 
     let border = (path.len() - 1) as NumTy;
     // Shoelace formula
@@ -119,24 +119,20 @@ impl Pipe {
 }
 
 fn find_starting_direction(start_pos: NumPair, map: &BTreeMap<NumPair, Pipe>) -> NumPair {
-    for dir in [(1, 0), (0, 1), (-1, 0), (0, -1)] {
-        let pos = (start_pos.0 + dir.0, start_pos.1 + dir.1);
-        if map.get(&pos).and_then(|pipe| pipe.follow(dir)).is_some() {
-            return dir;
-        }
-    }
-    panic!("No direction to start");
+    [(1, 0), (0, 1), (-1, 0), (0, -1)]
+        .into_iter()
+        .find(|dir| {
+            map.get(&(start_pos.0 + dir.0, start_pos.1 + dir.1))
+                .and_then(|pipe| pipe.follow(*dir))
+                .is_some()
+        })
+        .expect("No direction to start")
 }
 
-#[allow(unused_imports)]
 fn parse_input(input: &str) -> nom::IResult<&str, Vec<Vec<Pipe>>> {
-    use nom::branch::alt;
-    use nom::bytes::complete::tag;
-    use nom::character::complete::{alpha1, alphanumeric1, newline, none_of, space1};
+    use nom::character::complete::{newline, none_of};
     use nom::combinator::map;
-    use nom::combinator::value;
     use nom::multi::{many1, separated_list1};
-    use nom::sequence::{delimited, preceded, separated_pair, terminated};
 
     separated_list1(newline, many1(map(none_of("\n"), Pipe::from_str)))(input)
 }
