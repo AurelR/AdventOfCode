@@ -10,12 +10,12 @@ fn main() {
 
 fn part1(input: &str) -> String {
     let data = parse_input(input).unwrap().1;
-    data.iter().map(Grid::score).sum::<NumTy>().to_string()
+    data.iter().map(Grid::score1).sum::<NumTy>().to_string()
 }
 
 fn part2(input: &str) -> String {
-    let _data = parse_input(input).unwrap().1;
-    "".to_string()
+    let data = parse_input(input).unwrap().1;
+    data.iter().map(Grid::score2).sum::<NumTy>().to_string()
 }
 
 fn parse_input(input: &str) -> nom::IResult<&str, Vec<Grid>> {
@@ -52,9 +52,16 @@ struct Grid {
 }
 
 impl Grid {
-    fn score(&self) -> NumTy {
+    fn score1(&self) -> NumTy {
         self.horizontal_reflection().map_or_else(
             || self.transpose().horizontal_reflection().unwrap_or(0),
+            |s| s * 100,
+        )
+    }
+
+    fn score2(&self) -> NumTy {
+        self.horizontal_miss_1().map_or_else(
+            || self.transpose().horizontal_miss_1().unwrap_or(0),
             |s| s * 100,
         )
     }
@@ -70,6 +77,25 @@ impl Grid {
         }
         None
     }
+
+    fn horizontal_miss_1(&self) -> Option<NumTy> {
+        for i in 1..self.y_size {
+            let len = i.min(self.y_size / 2).min(self.y_size - i);
+            let a = &self.contents[i - len..i];
+            let b = &self.contents[i..i + len];
+            if a.iter()
+                .rev()
+                .zip(b)
+                .map(|(u, v)| u.iter().zip(v.iter()).filter(|(z, w)| z != w).count())
+                .sum::<usize>()
+                == 1
+            {
+                return Some(i);
+            }
+        }
+        None
+    }
+
     fn transpose(&self) -> Grid {
         Grid {
             x_size: self.y_size,
@@ -120,11 +146,25 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "not ready yet"]
     fn test_part2() {
         let input = "\
+#.##..##.
+..#.##.#.
+##......#
+##......#
+..#.##.#.
+..##..##.
+#.#.##.#.
+
+#...##..#
+#....#..#
+..##..###
+#####.##.
+#####.##.
+..##..###
+#....#..#     
 ";
         let result = part2(input);
-        assert_eq!(result, "todo");
+        assert_eq!(result, "400");
     }
 }
