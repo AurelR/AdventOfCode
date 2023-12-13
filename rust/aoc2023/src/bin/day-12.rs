@@ -1,5 +1,6 @@
 type NumTy = u64;
 use nom::character::complete::u64 as num_parser;
+use std::collections::HashMap as Cache;
 
 fn main() {
     let input = std::fs::read_to_string("data/input/input12.txt").unwrap();
@@ -18,56 +19,22 @@ fn part1(input: &str) -> String {
 }
 
 fn part2(input: &str) -> String {
-    let _data = parse_input(input).unwrap().1;
-    "".to_string()
+    let data = parse_input(input).unwrap().1;
+    data.iter()
+        .map(|(states, counts)| {
+            let (unfolded_states, unfolded_counts) = unfold(states, counts);
+            count_arrangments(&unfolded_states, &unfolded_counts)
+        })
+        .sum::<NumTy>()
+        .to_string()
 }
 
-#[allow(unused_imports)]
 fn parse_input(input: &str) -> nom::IResult<&str, Vec<(Vec<State>, Vec<NumTy>)>> {
     use nom::branch::alt;
-    use nom::bytes::complete::is_a;
     use nom::character::complete::{char, newline, space1};
-    use nom::combinator::{map, opt, value};
-    use nom::multi::{many1, many1_count, separated_list1};
-    use nom::sequence::{delimited, separated_pair};
-
-    // separated_list1(
-    //     newline,
-    //     separated_pair(
-    //         delimited(
-    //             opt(is_a(".")),
-    //             separated_list1(
-    //                 is_a("."),
-    //                 many1(alt((
-    //                     map(many1_count(char('#')), |c| (State::Broken, c as NumTy)),
-    //                     map(many1_count(char('?')), |c| (State::Unknown, c as NumTy)),
-    //                 ))),
-    //             ),
-    //             opt(is_a(".")),
-    //         ),
-    //         space1,
-    //         separated_list1(char(','), num_parser),
-    //     ),
-    // )(input)
-
-    // separated_list1(
-    //     newline,
-    //     separated_pair(
-    //         delimited(
-    //             opt(is_a(".")),
-    //             separated_list1(
-    //                 is_a("."),
-    //                 many1(alt((
-    //                     value(State::Broken, char('#')),
-    //                     value(State::Unknown, char('?')),
-    //                 ))),
-    //             ),
-    //             opt(is_a(".")),
-    //         ),
-    //         space1,
-    //         separated_list1(char(','), num_parser),
-    //     ),
-    // )(input)
+    use nom::combinator::value;
+    use nom::multi::{many1, separated_list1};
+    use nom::sequence::separated_pair;
 
     separated_list1(
         newline,
@@ -91,61 +58,59 @@ enum State {
 }
 
 fn count_arrangments(states: &[State], counts: &[NumTy]) -> NumTy {
-    let (zero_mask, one_mask) = states_to_masks(&states);
-    // dbg!(counts);
-    // println!("{zero_mask:016b}\n{one_mask:016b}\n");
-    let total = counts.iter().sum::<NumTy>();
-    let mut count = 0;
-    for i in 0..(1 << states.len()) {
-        if (i & one_mask == one_mask)
-            && (!i & zero_mask == zero_mask)
-            && i.count_ones() as NumTy == total
-            && matches_counts(i, counts)
-        {
-            // println!("{i:016b}");
-            count += 1;
-        }
-    }
-    count
+    let mut cache = Cache::new();
+    search(states, counts, None, &mut cache)
 }
 
-fn states_to_masks(states: &[State]) -> (NumTy, NumTy) {
-    let mut working_mask = 0;
-    let mut broken_mask = 0;
-    for s in states.iter().rev() {
-        working_mask <<= 1;
-        broken_mask <<= 1;
-
-        match s {
-            State::Working => working_mask |= 1,
-            State::Broken => broken_mask |= 1,
-            State::Unknown => {}
-        }
+fn search(
+    states: &[State],
+    counts: &[NumTy],
+    inside: Option<NumTy>,
+    cache: &mut Cache<(usize, NumTy, usize), NumTy>,
+) -> NumTy {
+    let key = (states.len(), inside.unwrap_or(0), counts.len());
+    if let Some(&c) = cache.get(&key) {
+        return c;
     }
-    (working_mask, broken_mask)
+
+    if states.is_empty() {
+        return match (inside, counts.len()) {
+            (None, 0) => 1,
+            (Some(c), 1) if c == counts[0] => 1,
+            _ => 0,
+        };
+    }
+    if counts.is_empty() && inside.is_some() {
+        return 0;
+    }
+
+    let result = match (states[0], inside) {
+        (State::Working, None) => search(&states[1..], counts, None, cache),
+        (State::Working, Some(c)) if c != counts[0] => 0,
+        (State::Working, Some(_)) => search(&states[1..], &counts[1..], None, cache),
+        (State::Broken, None) => search(&states[1..], counts, Some(1), cache),
+        (State::Broken, Some(c)) => search(&states[1..], counts, Some(c + 1), cache),
+        (State::Unknown, Some(c)) => {
+            let mut result = search(&states[1..], counts, Some(c + 1), cache);
+            if c == counts[0] {
+                result += search(&states[1..], &counts[1..], None, cache)
+            }
+            result
+        }
+        (State::Unknown, None) => {
+            search(&states[1..], counts, Some(1), cache) + search(&states[1..], counts, None, cache)
+        }
+    };
+    cache.insert(key, result);
+    return result;
 }
 
-fn matches_counts(mut arrangment: NumTy, counts: &[NumTy]) -> bool {
-    for c in counts.iter() {
-        arrangment >>= arrangment.trailing_zeros();
-        if arrangment.trailing_ones() != *c as u32 {
-            return false;
-        }
-        arrangment >>= arrangment.trailing_ones();
-    }
-    arrangment == 0
+fn unfold(states: &[State], counts: &[NumTy]) -> (Vec<State>, Vec<NumTy>) {
+    (
+        [states, states, states, states, states].join(&State::Unknown),
+        counts.repeat(5),
+    )
 }
-
-// fn count_arrangments_simple(states: &[(State, NumTy)], count: NumTy) -> NumTy {
-//     let total = states.iter().map(|(_s, c)| c).sum::<NumTy>();
-//     match total.cmp(&count) {
-//         std::cmp::Ordering::Less => dbg!(0),
-//         std::cmp::Ordering::Equal => 1,
-//         std::cmp::Ordering::Greater => match  {
-
-//         },
-//     }
-// }
 
 #[cfg(test)]
 mod tests {
@@ -196,6 +161,45 @@ mod tests {
     }
 
     #[test]
+    fn test_count_arrangments_7() {
+        let input = "?#?#?#?#?#?#?#? 1,3,1,6";
+        let (states, counts) = &parse_input(input).unwrap().1[0];
+        let (states_unfolded, counts_unfolded) = unfold(states, counts);
+        let result = count_arrangments(&states_unfolded, &counts_unfolded);
+        assert_eq!(result, 1);
+    }
+
+    #[test]
+    fn test_unfold1() {
+        let input = &parse_input(".# 1").unwrap().1[0];
+        let expected = &parse_input(".#?.#?.#?.#?.# 1,1,1,1,1").unwrap().1[0];
+        let result = unfold(&input.0, &input.1);
+        assert_eq!(expected, &result);
+    }
+
+    #[test]
+    fn test_unfold2() {
+        let input = &parse_input("???.### 1,1,3").unwrap().1[0];
+        let expected =
+            &parse_input("???.###????.###????.###????.###????.### 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3")
+                .unwrap()
+                .1[0];
+        let result = unfold(&input.0, &input.1);
+        assert_eq!(expected, &result);
+    }
+
+    #[test]
+    fn test_unfold3() {
+        let input = &parse_input("?#?#?#?#?#?#?#? 1,3,1,6").unwrap().1[0];
+        let expected =
+            &parse_input("?#?#?#?#?#?#?#???#?#?#?#?#?#?#???#?#?#?#?#?#?#???#?#?#?#?#?#?#???#?#?#?#?#?#?#? 1,3,1,6,1,3,1,6,1,3,1,6,1,3,1,6,1,3,1,6")
+                .unwrap()
+                .1[0];
+        let result = unfold(&input.0, &input.1);
+        assert_eq!(expected, &result);
+    }
+
+    #[test]
     fn test_part1() {
         let input = "\
 ???.### 1,1,3
@@ -210,11 +214,16 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_part2() {
         let input = "\
+???.### 1,1,3
+.??..??...?##. 1,1,3
+?#?#?#?#?#?#?#? 1,3,1,6
+????.#...#... 4,1,1
+????.######..#####. 1,6,5
+?###???????? 3,2,1
 ";
         let result = part2(input);
-        assert_eq!(result, "todo");
+        assert_eq!(result, "525152");
     }
 }
