@@ -14,10 +14,31 @@ fn part1(input: &str) -> String {
     let data = parse_input(input).unwrap().1;
     let grid = reformat_data(data);
 
+    energize_grid(&grid, (0, 0), (1, 0)).to_string()
+}
+
+fn part2(input: &str) -> String {
+    let data = parse_input(input).unwrap().1;
+    let grid = reformat_data(data);
+
+    let mut max = 0;
+
+    for x in 0..grid.x_size {
+        max = max.max(energize_grid(&grid, (x, 0), (0, 1)));
+        max = max.max(energize_grid(&grid, (x, grid.y_size - 1), (0, -1)));
+    }
+    for y in 0..grid.y_size {
+        max = max.max(energize_grid(&grid, (0, y), (1, 0)));
+        max = max.max(energize_grid(&grid, (grid.x_size - 1, y), (-1, 0)));
+    }
+    max.to_string()
+}
+
+fn energize_grid(grid: &Grid, start_pos: NumPair, start_dir: NumPair) -> usize {
     let mut cache = BTreeSet::new();
     let mut energized = BTreeSet::new();
     let mut beams = Vec::new();
-    beams.push(((0, 0), (1, 0)));
+    beams.push((start_pos, start_dir));
     while !beams.is_empty() {
         let mut new_beams = Vec::new();
         for beam in beams.into_iter() {
@@ -36,12 +57,7 @@ fn part1(input: &str) -> String {
         }
         beams = new_beams;
     }
-    energized.len().to_string()
-}
-
-fn part2(input: &str) -> String {
-    let _data = parse_input(input).unwrap().1;
-    "".to_string()
+    energized.len()
 }
 
 fn parse_input(input: &str) -> nom::IResult<&str, Vec<Vec<Tile>>> {
@@ -140,11 +156,19 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "not ready yet"]
     fn test_part2() {
-        let input = "\
-";
+        let input = r#".|...\....
+|.-.\.....
+.....|-...
+........|.
+..........
+.........\
+..../.\\..
+.-.-/..|..
+.|....-|.\
+..//.|....
+"#;
         let result = part2(input);
-        assert_eq!(result, "todo");
+        assert_eq!(result, "51");
     }
 }
