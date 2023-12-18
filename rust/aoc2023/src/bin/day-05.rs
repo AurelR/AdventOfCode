@@ -1,5 +1,6 @@
 type NumTy = u64;
 use nom::character::complete::u64 as num_parser;
+use std::ops::Range;
 
 fn main() {
     let input = std::fs::read_to_string("data/input/input05.txt").unwrap();
@@ -23,14 +24,15 @@ fn part2(input: &str) -> String {
     let (seeds, mappings) = parse_input(input).unwrap().1;
     seeds
         .chunks_exact(2)
-        .map(|c| Ranges {
-            ranges: vec![Range {
-                begin: c[0],
-                length: c[1],
-            }],
+        .map(|c| {
+            mappings
+                .iter()
+                .fold(vec![c[0]..c[0] + c[1]], |ra, m| m.map_ranges(ra))
+                .into_iter()
+                .map(|r| r.start)
+                .min()
+                .unwrap()
         })
-        .map(|ranges| mappings.iter().fold(ranges, |ra, m| m.map_ranges(ra)))
-        .map(|r| r.min())
         .min()
         .unwrap()
         .to_string()
@@ -38,9 +40,8 @@ fn part2(input: &str) -> String {
 
 #[derive(Debug)]
 struct SingleMapping {
-    source: NumTy,
+    range: Range<NumTy>,
     destination: NumTy,
-    length: NumTy,
 }
 
 #[derive(Debug)]
@@ -48,85 +49,24 @@ struct Mapping {
     maps: Vec<SingleMapping>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Range {
-    begin: NumTy,
-    length: NumTy,
-}
-
-#[derive(Debug, Clone)]
-struct Ranges {
-    ranges: Vec<Range>,
-}
-
 impl SingleMapping {
     fn map(&self, num: NumTy) -> Option<NumTy> {
-        if (self.source..self.source + self.length).contains(&num) {
-            Some(num - self.source + self.destination)
+        if self.range.contains(&num) {
+            Some(num - self.range.start + self.destination)
         } else {
             None
         }
     }
 
-    fn map_range(&self, range: Range) -> (Vec<Range>, Option<Range>) {
-        if range.begin < self.source {
-            if range.begin + range.length <= self.source {
-                (vec![range], None)
-            } else {
-                if range.begin + range.length >= self.source + self.length {
-                    (
-                        vec![
-                            Range {
-                                begin: range.begin,
-                                length: self.source - range.begin,
-                            },
-                            Range {
-                                begin: self.source + self.length,
-                                length: range.begin + range.length - (self.source + self.length),
-                            },
-                        ],
-                        Some(Range {
-                            begin: self.destination,
-                            length: self.length,
-                        }),
-                    )
-                } else {
-                    (
-                        vec![Range {
-                            begin: range.begin,
-                            length: self.source - range.begin,
-                        }],
-                        Some(Range {
-                            begin: self.destination,
-                            length: range.begin + range.length - self.source,
-                        }),
-                    )
-                }
-            }
-        } else if self.source <= range.begin && range.begin < self.source + self.length {
-            if range.begin + range.length <= self.source + self.length {
-                (
-                    vec![],
-                    Some(Range {
-                        begin: range.begin - self.source + self.destination,
-                        length: range.length,
-                    }),
-                )
-            } else {
-                (
-                    vec![Range {
-                        begin: self.source + self.length,
-                        length: range.begin + range.length - (self.source + self.length),
-                    }],
-                    Some(Range {
-                        begin: range.begin - self.source + self.destination,
-                        length: self.source + self.length - range.begin,
-                    }),
-                )
-            }
-        } else {
-            (vec![range], None)
-        }
+    fn map_range(&self, range: Range<NumTy>) -> (Vec<Range<NumTy>>, Option<Range<NumTy>>) {
+        let (r1, transform, r2) = intersect(&self.range, &range);
+        (
+            [r1, r2].into_iter().flatten().collect(),
+            transform.map(|t| {
+                t.start - self.range.start + self.destination
+                    ..t.end - self.range.start + self.destination
+            }),
+        )
     }
 }
 
@@ -138,9 +78,9 @@ impl Mapping {
             .unwrap_or(num)
     }
 
-    fn map_ranges(&self, ranges: Ranges) -> Ranges {
+    fn map_ranges(&self, ranges: Vec<Range<NumTy>>) -> Vec<Range<NumTy>> {
         let mut result = Vec::new();
-        for range in ranges.ranges {
+        for range in ranges {
             let mut sub_ranges = vec![range];
             for m in &self.maps {
                 let mut new_sub_ranges = Vec::new();
@@ -155,13 +95,38 @@ impl Mapping {
             }
             result.append(&mut sub_ranges);
         }
-        Ranges { ranges: result }
+        result
     }
 }
 
-impl Ranges {
-    fn min(&self) -> NumTy {
-        self.ranges.iter().map(|r| r.begin).min().unwrap()
+fn intersect(
+    base: &Range<NumTy>,
+    other: &Range<NumTy>,
+) -> (
+    Option<Range<NumTy>>,
+    Option<Range<NumTy>>,
+    Option<Range<NumTy>>,
+) {
+    if other.end <= base.start {
+        (Some(other.clone()), None, None)
+    } else if base.end <= other.start {
+        (None, None, Some(other.clone()))
+    } else if base.start <= other.start && other.end <= base.end {
+        (None, Some(other.clone()), None)
+    } else if other.start < base.start && other.end <= base.end {
+        (
+            Some(other.start..base.start),
+            Some(base.start..other.end),
+            None,
+        )
+    } else if base.start <= other.start && base.end < other.end {
+        (None, Some(other.start..base.end), Some(base.end..other.end))
+    } else {
+        (
+            Some(other.start..base.start),
+            Some(base.clone()),
+            Some(base.end..other.end),
+        )
     }
 }
 
@@ -202,9 +167,8 @@ fn parse_mapping(input: &str) -> nom::IResult<&str, Mapping> {
                 map(
                     tuple((num_parser, space1, num_parser, space1, num_parser)),
                     |(destination, _, source, _, length)| SingleMapping {
-                        source,
+                        range: (source..source + length),
                         destination,
-                        length,
                     },
                 ),
             ),
@@ -220,9 +184,8 @@ mod tests {
     #[test]
     fn test_single_mapping_1() {
         let mapping = SingleMapping {
-            source: 98,
+            range: (98..98 + 2),
             destination: 50,
-            length: 2,
         };
         assert_eq!(None, mapping.map(97));
         assert_eq!(Some(50), mapping.map(98));
@@ -233,9 +196,8 @@ mod tests {
     #[test]
     fn test_single_mapping_2() {
         let mapping = SingleMapping {
-            source: 50,
+            range: (50..50 + 48),
             destination: 52,
-            length: 48,
         };
         assert_eq!(None, mapping.map(49));
         assert_eq!(Some(52), mapping.map(50));
@@ -248,14 +210,12 @@ mod tests {
         let mapping = Mapping {
             maps: vec![
                 SingleMapping {
-                    source: 50,
+                    range: (50..50 + 48),
                     destination: 52,
-                    length: 48,
                 },
                 SingleMapping {
-                    source: 98,
+                    range: (98..98 + 2),
                     destination: 50,
-                    length: 2,
                 },
             ],
         };
@@ -314,129 +274,38 @@ humidity-to-location map:
     #[test]
     fn test_single_mapping_map_range() {
         let mapping = SingleMapping {
-            source: 98,
+            range: (98..98 + 10),
             destination: 50,
-            length: 10,
         };
 
         // total overlap
-        assert_eq!(
-            (
-                vec![],
-                Some(Range {
-                    begin: 50,
-                    length: 10
-                })
-            ),
-            mapping.map_range(Range {
-                begin: 98,
-                length: 10
-            })
-        );
+        assert_eq!((vec![], Some(50..50 + 10)), mapping.map_range(98..98 + 10));
 
         // inner overlap
-        assert_eq!(
-            (
-                vec![],
-                Some(Range {
-                    begin: 52,
-                    length: 4
-                })
-            ),
-            mapping.map_range(Range {
-                begin: 100,
-                length: 4
-            })
-        );
+        assert_eq!((vec![], Some(52..52 + 4)), mapping.map_range(100..100 + 4));
 
         // before
-        assert_eq!(
-            (
-                vec![Range {
-                    begin: 20,
-                    length: 23
-                }],
-                None,
-            ),
-            mapping.map_range(Range {
-                begin: 20,
-                length: 23
-            })
-        );
+        assert_eq!((vec![20..20 + 23], None,), mapping.map_range(20..20 + 23));
 
         // after
-        assert_eq!(
-            (
-                vec![Range {
-                    begin: 108,
-                    length: 7
-                }],
-                None,
-            ),
-            mapping.map_range(Range {
-                begin: 108,
-                length: 7
-            })
-        );
+        assert_eq!((vec![108..108 + 7], None,), mapping.map_range(108..108 + 7));
 
         // begin overlap
         assert_eq!(
-            (
-                vec![Range {
-                    begin: 95,
-                    length: 3
-                }],
-                Some(Range {
-                    begin: 50,
-                    length: 4
-                })
-            ),
-            mapping.map_range(Range {
-                begin: 95,
-                length: 7
-            })
+            (vec![95..95 + 3], Some(50..50 + 4)),
+            mapping.map_range(95..95 + 7)
         );
 
         // end overlap
         assert_eq!(
-            (
-                vec![Range {
-                    begin: 108,
-                    length: 4
-                }],
-                Some(Range {
-                    begin: 52,
-                    length: 8
-                })
-            ),
-            mapping.map_range(Range {
-                begin: 100,
-                length: 12
-            })
+            (vec![108..108 + 4], Some(52..52 + 8)),
+            mapping.map_range(100..100 + 12)
         );
 
         // more than total overlap
         assert_eq!(
-            (
-                vec![
-                    Range {
-                        begin: 95,
-                        length: 3
-                    },
-                    Range {
-                        begin: 108,
-                        length: 7
-                    }
-                ],
-                Some(Range {
-                    begin: 50,
-                    length: 10
-                }),
-            ),
-            mapping.map_range(Range {
-                begin: 95,
-                length: 20
-            })
+            (vec![95..95 + 3, 108..108 + 7], Some(50..50 + 10),),
+            mapping.map_range(95..95 + 20)
         );
     }
 
