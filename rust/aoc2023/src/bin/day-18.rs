@@ -1,7 +1,6 @@
-type NumTy = i32;
-use nom::{character::complete::i32 as num_parser, sequence::delimited};
+type NumTy = i64;
+use nom::character::complete::i64 as num_parser;
 type NumPair = (NumTy, NumTy);
-use std::collections::{BTreeMap, BTreeSet};
 
 fn main() {
     let input = std::fs::read_to_string("data/input/input18.txt").unwrap();
@@ -13,44 +12,58 @@ fn main() {
 
 fn part1(input: &str) -> String {
     let data = parse_input(input).unwrap().1;
-    let mut points = Vec::new();
-    let mut current_pos = (0, 0);
-    let mut border = 0;
-    points.push(current_pos);
-    for (dir, _, len, _) in data {
-        border += len;
-        current_pos = match dir {
-            Direction::Up => (current_pos.0, current_pos.1 - len),
-            Direction::Down => (current_pos.0, current_pos.1 + len),
-            Direction::Left => (current_pos.0 - len, current_pos.1),
-            Direction::Right => (current_pos.0 + len, current_pos.1),
-        };
-        points.push(current_pos);
-    }
-    // Shoelace formula
-    let area = points
-        .windows(2)
-        .map(|p| p[0].0 * p[1].1 - p[1].0 * p[0].1)
-        .sum::<NumTy>()
-        / 2;
-    // Picks Theorem
-    let result = area.abs() + border / 2 + 1;
-    result.to_string()
+    let points = directions_to_points(data.into_iter().map(|(dir, len, _, _)| (dir, len)));
+    let (area, _interior, _border) = calculate_areas(&points);
+    area.to_string()
 }
 
 fn part2(input: &str) -> String {
-    let _data = parse_input(input).unwrap().1;
-    "".to_string()
+    let data = parse_input(input).unwrap().1;
+    let points = directions_to_points(data.into_iter().map(|(_, _, len, dir)| (dir, len)));
+    let (area, _interior, _border) = calculate_areas(&points);
+    area.to_string()
 }
 
-#[allow(unused_imports)]
-fn parse_input(input: &str) -> nom::IResult<&str, Vec<(Direction, &str, NumTy, &str)>> {
+fn directions_to_points(data: impl Iterator<Item = (Direction, NumTy)>) -> Vec<NumPair> {
+    std::iter::once((0, 0))
+        .chain(data.scan((0, 0), |current_pos, (dir, len)| {
+            *current_pos = match dir {
+                Direction::Up => (current_pos.0, current_pos.1 - len),
+                Direction::Down => (current_pos.0, current_pos.1 + len),
+                Direction::Left => (current_pos.0 - len, current_pos.1),
+                Direction::Right => (current_pos.0 + len, current_pos.1),
+            };
+            Some(*current_pos)
+        }))
+        .collect()
+}
+
+/// First and last point need to be the same point.
+/// Returns (area, interior, border)
+fn calculate_areas(points: &[NumPair]) -> (NumTy, NumTy, NumTy) {
+    let border = points
+        .windows(2)
+        .map(|p| p[0].0.abs_diff(p[1].0) as NumTy + p[0].1.abs_diff(p[1].1) as NumTy)
+        .sum::<NumTy>();
+    // Shoelace formula
+    let interior = (points
+        .windows(2)
+        .map(|p| p[0].0 * p[1].1 - p[1].0 * p[0].1)
+        .sum::<NumTy>()
+        / 2)
+    .abs();
+    // Picks Theorem
+    let area = interior + border / 2 + 1;
+    (area, interior, border)
+}
+
+fn parse_input(input: &str) -> nom::IResult<&str, Vec<(Direction, NumTy, NumTy, Direction)>> {
     use nom::branch::alt;
-    use nom::bytes::complete::{is_a, tag};
-    use nom::character::complete::{alphanumeric1, char, newline, space1};
+    use nom::bytes::complete::{tag, take};
+    use nom::character::complete::{char, newline, space1};
     use nom::combinator::{map, value};
-    use nom::multi::{many1, separated_list1};
-    use nom::sequence::{preceded, separated_pair, tuple};
+    use nom::multi::separated_list1;
+    use nom::sequence::{preceded, terminated, tuple};
 
     separated_list1(
         newline,
@@ -61,9 +74,20 @@ fn parse_input(input: &str) -> nom::IResult<&str, Vec<(Direction, &str, NumTy, &
                 value(Direction::Left, char('L')),
                 value(Direction::Right, char('R')),
             )),
-            space1,
-            num_parser,
-            delimited(tag(" (#"), alphanumeric1, tag(")")),
+            preceded(space1, num_parser),
+            preceded(
+                tag(" (#"),
+                map(take(5usize), |s| NumTy::from_str_radix(s, 16).unwrap()),
+            ),
+            terminated(
+                alt((
+                    value(Direction::Up, char('3')),
+                    value(Direction::Down, char('1')),
+                    value(Direction::Left, char('2')),
+                    value(Direction::Right, char('0')),
+                )),
+                tag(")"),
+            ),
         )),
     )(input)
 }
@@ -75,32 +99,6 @@ enum Direction {
     Left,
     Right,
 }
-
-// fn reformat_data(data: Vec<Vec<Tile>>) -> Grid {
-//     let x_size = data[0].len() as NumTy;
-//     let y_size = data.len() as NumTy;
-//     let contents = data
-//         .into_iter()
-//         .enumerate()
-//         .flat_map(|(y, line)| {
-//             line.into_iter()
-//                 .enumerate()
-//                 .map(move |(x, tile)| ((x as NumTy, y as NumTy), tile))
-//         })
-//         .collect();
-//     Grid {
-//         contents,
-//         x_size,
-//         y_size,
-//     }
-// }
-
-// #[derive(Debug, Clone, PartialEq, Eq)]
-// struct Grid {
-//     contents: BTreeMap<NumPair, Tile>,
-//     x_size: NumTy,
-//     y_size: NumTy,
-// }
 
 #[cfg(test)]
 mod tests {
@@ -129,11 +127,24 @@ U 2 (#7a21e3)
     }
 
     #[test]
-    #[ignore = "not done yet"]
     fn test_part2() {
         let input = "\
+R 6 (#70c710)
+D 5 (#0dc571)
+L 2 (#5713f0)
+D 2 (#d2c081)
+R 2 (#59c680)
+D 2 (#411b91)
+L 5 (#8ceee2)
+U 2 (#caa173)
+L 1 (#1b58a2)
+U 2 (#caa171)
+R 2 (#7807d2)
+U 3 (#a77fa3)
+L 2 (#015232)
+U 2 (#7a21e3)
 ";
         let result = part2(input);
-        assert_eq!(result, "todo");
+        assert_eq!(result, "952408144115");
     }
 }
