@@ -1,6 +1,7 @@
-type NumTy = i32;
-use nom::{character::complete::i32 as num_parser, sequence::preceded};
+type NumTy = i64;
+use nom::character::complete::i64 as num_parser;
 use std::collections::BTreeMap;
+use std::ops::Range;
 
 fn main() {
     let input = std::fs::read_to_string("data/input/input19.txt").unwrap();
@@ -12,66 +13,39 @@ fn main() {
 
 fn part1(input: &str) -> String {
     let (workflows, parts) = parse_input(input).unwrap().1;
-    let workflows = BTreeMap::from_iter(workflows.into_iter().map(|w| (w.name, w)));
 
     let mut accepted_sum = 0;
-    'part: for part in parts {
+    for part in parts {
         let mut wn = "in";
-        dbg!(part);
         'workflow: loop {
-            dbg!(wn);
-            let w = workflows.get(wn).unwrap();
+            let w = &workflows[wn];
             for r in &w.rules {
-                match r {
-                    Rule::Send(Target::Accpet) => {
-                        accepted_sum += part.x + part.m + part.a + part.s;
-                        continue 'part;
-                    }
-                    Rule::Send(Target::Reject) => continue 'part,
-                    Rule::Send(Target::Workflow(w)) => {
-                        wn = *w;
-                        continue 'workflow;
-                    }
-                    Rule::SendGreater(c, cmp, t) => {
+                let matched = match r.condition {
+                    Condition::Always => true,
+                    Condition::Greater(c, cmp) | Condition::Less(c, cmp) => {
                         let val = match c {
                             Category::X => part.x,
                             Category::M => part.m,
                             Category::A => part.a,
                             Category::S => part.s,
                         };
-                        if val > *cmp {
-                            match t {
-                                Target::Workflow(w) => {
-                                    wn = *w;
-                                    continue 'workflow;
-                                }
-                                Target::Accpet => {
-                                    accepted_sum += part.x + part.m + part.a + part.s;
-                                    continue 'part;
-                                }
-                                Target::Reject => continue 'part,
-                            }
+                        if let Condition::Greater(_, _) = r.condition {
+                            val > cmp
+                        } else {
+                            val < cmp
                         }
                     }
-                    Rule::SendLess(c, cmp, t) => {
-                        let val = match c {
-                            Category::X => part.x,
-                            Category::M => part.m,
-                            Category::A => part.a,
-                            Category::S => part.s,
-                        };
-                        if val < *cmp {
-                            match t {
-                                Target::Workflow(w) => {
-                                    wn = *w;
-                                    continue 'workflow;
-                                }
-                                Target::Accpet => {
-                                    accepted_sum += part.x + part.m + part.a + part.s;
-                                    continue 'part;
-                                }
-                                Target::Reject => continue 'part,
-                            }
+                };
+                if matched {
+                    match r.target {
+                        Target::Accpet => {
+                            accepted_sum += part.x + part.m + part.a + part.s;
+                            break 'workflow;
+                        }
+                        Target::Reject => break 'workflow,
+                        Target::Workflow(w) => {
+                            wn = w;
+                            continue 'workflow;
                         }
                     }
                 }
@@ -82,55 +56,101 @@ fn part1(input: &str) -> String {
 }
 
 fn part2(input: &str) -> String {
-    let (workflows, parts) = parse_input(input).unwrap().1;
-    let workflows = BTreeMap::from_iter(workflows.into_iter().map(|w| (w.name, w)));
-    "".to_string()
+    let (workflows, _) = parse_input(input).unwrap().1;
+    let mut accepted = Vec::new();
+    let mut active_ranges = vec![(
+        "in",
+        PartRange {
+            x: 1..4001,
+            m: 1..4001,
+            a: 1..4001,
+            s: 1..4001,
+        },
+    )];
+
+    let mut next_ranges = Vec::new();
+
+    while !active_ranges.is_empty() {
+        for (lw, mut part) in active_ranges {
+            let w = workflows.get(lw).unwrap();
+            for rule in &w.rules {
+                let (matching, not_matching) = rule.condition.apply(&part);
+                if let Some(p) = matching {
+                    match rule.target {
+                        Target::Accpet => accepted.push(p),
+                        Target::Reject => {}
+                        Target::Workflow(nw) => next_ranges.push((nw, p)),
+                    }
+                }
+
+                if let Some(p) = not_matching {
+                    part = p;
+                } else {
+                    break;
+                }
+            }
+        }
+        active_ranges = next_ranges;
+        next_ranges = Vec::new();
+    }
+    accepted
+        .into_iter()
+        .map(|p| p.x.count() * p.m.count() * p.a.count() * p.s.count())
+        .sum::<usize>()
+        .to_string()
 }
 
-fn parse_input(input: &str) -> nom::IResult<&str, (Vec<Workflow>, Vec<Part>)> {
-    use nom::branch::alt;
+fn parse_input(input: &str) -> nom::IResult<&str, (BTreeMap<&str, Workflow>, Vec<Part>)> {
     use nom::bytes::complete::tag;
     use nom::character::complete::{alpha1, char, newline};
-    use nom::combinator::{map, value};
-    use nom::multi::{many1, separated_list1};
+    use nom::combinator::map;
+    use nom::multi::separated_list1;
     use nom::sequence::{delimited, preceded, separated_pair, tuple};
 
-    separated_pair(
-        separated_list1(
-            newline,
-            map(
-                tuple((
-                    alpha1,
-                    delimited(char('{'), separated_list1(char(','), parse_rule), char('}')),
-                )),
-                |(name, rules)| Workflow { name, rules },
-            ),
-        ),
-        tag("\n\n"),
-        separated_list1(
-            newline,
-            map(
-                delimited(
-                    tag("{x="),
+    map(
+        separated_pair(
+            separated_list1(
+                newline,
+                map(
                     tuple((
-                        num_parser,
-                        preceded(tag(",m="), num_parser),
-                        preceded(tag(",a="), num_parser),
-                        preceded(tag(",s="), num_parser),
+                        alpha1,
+                        delimited(char('{'), separated_list1(char(','), parse_rule), char('}')),
                     )),
-                    char('}'),
+                    |(name, rules)| Workflow { name, rules },
                 ),
-                |(x, m, a, s)| Part { x, m, a, s },
+            ),
+            tag("\n\n"),
+            separated_list1(
+                newline,
+                map(
+                    delimited(
+                        tag("{x="),
+                        tuple((
+                            num_parser,
+                            preceded(tag(",m="), num_parser),
+                            preceded(tag(",a="), num_parser),
+                            preceded(tag(",s="), num_parser),
+                        )),
+                        char('}'),
+                    ),
+                    |(x, m, a, s)| Part { x, m, a, s },
+                ),
             ),
         ),
+        |(workflows, parts)| {
+            (
+                BTreeMap::from_iter(workflows.into_iter().map(|w| (w.name, w))),
+                parts,
+            )
+        },
     )(input)
 }
 
 fn parse_rule(input: &str) -> nom::IResult<&str, Rule> {
     use nom::branch::alt;
-    use nom::character::complete::{alpha1, char, one_of};
-    use nom::combinator::{map, value};
-    use nom::sequence::{delimited, preceded, separated_pair, tuple};
+    use nom::character::complete::{char, one_of};
+    use nom::combinator::map;
+    use nom::sequence::{preceded, tuple};
     alt((
         map(
             tuple((
@@ -140,20 +160,27 @@ fn parse_rule(input: &str) -> nom::IResult<&str, Rule> {
                 preceded(char(':'), parse_target),
             )),
             |(category, cmp, cmp_value, target)| match cmp {
-                '>' => Rule::SendGreater(category, cmp_value, target),
-                '<' => Rule::SendLess(category, cmp_value, target),
+                '>' => Rule {
+                    target,
+                    condition: Condition::Greater(category, cmp_value),
+                },
+                '<' => Rule {
+                    target,
+                    condition: Condition::Less(category, cmp_value),
+                },
                 _ => unreachable!(),
             },
         ),
-        map(parse_target, |t| Rule::Send(t)),
+        map(parse_target, |target| Rule {
+            target,
+            condition: Condition::Always,
+        }),
     ))(input)
 }
 
 fn parse_category(input: &str) -> nom::IResult<&str, Category> {
-    use nom::branch::alt;
-    use nom::character::complete::{alpha1, char, one_of};
-    use nom::combinator::{map, value};
-    use nom::sequence::{delimited, preceded, separated_pair, tuple};
+    use nom::character::complete::one_of;
+    use nom::combinator::map;
     map(one_of("xmas"), |c| match c {
         'x' => Category::X,
         'm' => Category::M,
@@ -181,10 +208,16 @@ struct Workflow<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Rule<'a> {
-    Send(Target<'a>),
-    SendGreater(Category, NumTy, Target<'a>),
-    SendLess(Category, NumTy, Target<'a>),
+struct Rule<'a> {
+    target: Target<'a>,
+    condition: Condition,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Condition {
+    Always,
+    Greater(Category, NumTy),
+    Less(Category, NumTy),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -208,6 +241,138 @@ struct Part {
     m: NumTy,
     a: NumTy,
     s: NumTy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PartRange {
+    x: Range<NumTy>,
+    m: Range<NumTy>,
+    a: Range<NumTy>,
+    s: Range<NumTy>,
+}
+
+impl Condition {
+    fn apply(&self, part: &PartRange) -> (Option<PartRange>, Option<PartRange>) {
+        match self {
+            Condition::Always => (Some(part.clone()), None),
+            Condition::Less(category, limit) => {
+                let val = match category {
+                    Category::X => &part.x,
+                    Category::M => &part.m,
+                    Category::A => &part.a,
+                    Category::S => &part.s,
+                };
+                if val.end <= *limit {
+                    (Some(part.clone()), None)
+                } else if val.start >= *limit {
+                    (None, Some(part.clone()))
+                } else {
+                    let matching = val.start..*limit;
+                    let not_matching = *limit..val.end;
+                    match category {
+                        Category::X => (
+                            Some(PartRange {
+                                x: matching,
+                                ..part.clone()
+                            }),
+                            Some(PartRange {
+                                x: not_matching,
+                                ..part.clone()
+                            }),
+                        ),
+                        Category::M => (
+                            Some(PartRange {
+                                m: matching,
+                                ..part.clone()
+                            }),
+                            Some(PartRange {
+                                m: not_matching,
+                                ..part.clone()
+                            }),
+                        ),
+                        Category::A => (
+                            Some(PartRange {
+                                a: matching,
+                                ..part.clone()
+                            }),
+                            Some(PartRange {
+                                a: not_matching,
+                                ..part.clone()
+                            }),
+                        ),
+                        Category::S => (
+                            Some(PartRange {
+                                s: matching,
+                                ..part.clone()
+                            }),
+                            Some(PartRange {
+                                s: not_matching,
+                                ..part.clone()
+                            }),
+                        ),
+                    }
+                }
+            }
+            Condition::Greater(category, limit) => {
+                let val = match category {
+                    Category::X => &part.x,
+                    Category::M => &part.m,
+                    Category::A => &part.a,
+                    Category::S => &part.s,
+                };
+                if *limit <= val.start {
+                    (Some(part.clone()), None)
+                } else if val.end <= *limit + 1 {
+                    (None, Some(part.clone()))
+                } else {
+                    let matching = *limit + 1..val.end;
+                    let not_matching = val.start..*limit + 1;
+                    match category {
+                        Category::X => (
+                            Some(PartRange {
+                                x: matching,
+                                ..part.clone()
+                            }),
+                            Some(PartRange {
+                                x: not_matching,
+                                ..part.clone()
+                            }),
+                        ),
+                        Category::M => (
+                            Some(PartRange {
+                                m: matching,
+                                ..part.clone()
+                            }),
+                            Some(PartRange {
+                                m: not_matching,
+                                ..part.clone()
+                            }),
+                        ),
+                        Category::A => (
+                            Some(PartRange {
+                                a: matching,
+                                ..part.clone()
+                            }),
+                            Some(PartRange {
+                                a: not_matching,
+                                ..part.clone()
+                            }),
+                        ),
+                        Category::S => (
+                            Some(PartRange {
+                                s: matching,
+                                ..part.clone()
+                            }),
+                            Some(PartRange {
+                                s: not_matching,
+                                ..part.clone()
+                            }),
+                        ),
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -240,7 +405,6 @@ hdj{m>838:A,pv}
     }
 
     #[test]
-    #[ignore = "not done yet"]
     fn test_part2() {
         let input = "\
 px{a<2006:qkq,m>2090:A,rfg}
@@ -262,6 +426,68 @@ hdj{m>838:A,pv}
 {x=2127,m=1623,a=2188,s=1013}
 ";
         let result = part2(input);
-        assert_eq!(result, "todo");
+        assert_eq!(result, "167409079868000");
+    }
+
+    #[test]
+    fn test_apply() {
+        let part = PartRange {
+            x: 1..4001,
+            m: 1..4001,
+            a: 1..4001,
+            s: 1..4001,
+        };
+        let condition = Condition::Always;
+        assert_eq!((Some(part.clone()), None), condition.apply(&part));
+
+        let condition = Condition::Greater(Category::M, 2090);
+        assert_eq!(
+            (
+                Some(PartRange {
+                    x: 1..4001,
+                    m: 2091..4001,
+                    a: 1..4001,
+                    s: 1..4001,
+                }),
+                Some(PartRange {
+                    x: 1..4001,
+                    m: 1..2091,
+                    a: 1..4001,
+                    s: 1..4001,
+                })
+            ),
+            condition.apply(&part)
+        );
+
+        let condition = Condition::Greater(Category::X, 4000);
+        assert_eq!((None, Some(part.clone())), condition.apply(&part));
+
+        let condition = Condition::Greater(Category::S, 1);
+        assert_eq!((Some(part.clone()), None), condition.apply(&part));
+
+        let condition = Condition::Less(Category::A, 4001);
+        assert_eq!((Some(part.clone()), None), condition.apply(&part));
+
+        let condition = Condition::Less(Category::A, 1);
+        assert_eq!((None, Some(part.clone())), condition.apply(&part));
+
+        let condition = Condition::Less(Category::M, 2090);
+        assert_eq!(
+            (
+                Some(PartRange {
+                    x: 1..4001,
+                    m: 1..2090,
+                    a: 1..4001,
+                    s: 1..4001,
+                }),
+                Some(PartRange {
+                    x: 1..4001,
+                    m: 2090..4001,
+                    a: 1..4001,
+                    s: 1..4001,
+                })
+            ),
+            condition.apply(&part)
+        );
     }
 }
