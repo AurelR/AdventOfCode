@@ -14,45 +14,25 @@ fn main() {
 fn part1(input: &str) -> String {
     let (workflows, parts) = parse_input(input).unwrap().1;
 
-    let mut accepted_sum = 0;
-    for part in parts {
-        let mut wn = "in";
-        'workflow: loop {
-            let w = &workflows[wn];
-            for r in &w.rules {
-                let matched = match r.condition {
-                    Condition::Always => true,
-                    Condition::Greater(c, cmp) | Condition::Less(c, cmp) => {
-                        let val = match c {
-                            Category::X => part.x,
-                            Category::M => part.m,
-                            Category::A => part.a,
-                            Category::S => part.s,
-                        };
-                        if let Condition::Greater(_, _) = r.condition {
-                            val > cmp
-                        } else {
-                            val < cmp
-                        }
+    parts
+        .into_iter()
+        .map(|part| {
+            let mut wn = "in";
+            loop {
+                let w = &workflows[wn];
+                match w.process(&part) {
+                    Target::Accept => {
+                        return part.x + part.m + part.a + part.s;
                     }
-                };
-                if matched {
-                    match r.target {
-                        Target::Accpet => {
-                            accepted_sum += part.x + part.m + part.a + part.s;
-                            break 'workflow;
-                        }
-                        Target::Reject => break 'workflow,
-                        Target::Workflow(w) => {
-                            wn = w;
-                            continue 'workflow;
-                        }
+                    Target::Reject => return 0,
+                    Target::Workflow(w) => {
+                        wn = w;
                     }
                 }
             }
-        }
-    }
-    accepted_sum.to_string()
+        })
+        .sum::<NumTy>()
+        .to_string()
 }
 
 fn part2(input: &str) -> String {
@@ -72,12 +52,12 @@ fn part2(input: &str) -> String {
 
     while !active_ranges.is_empty() {
         for (lw, mut part) in active_ranges {
-            let w = workflows.get(lw).unwrap();
+            let w = &workflows[lw];
             for rule in &w.rules {
-                let (matching, not_matching) = rule.condition.apply(&part);
+                let (matching, not_matching) = rule.condition.apply_range(part);
                 if let Some(p) = matching {
                     match rule.target {
-                        Target::Accpet => accepted.push(p),
+                        Target::Accept => accepted.push(p),
                         Target::Reject => {}
                         Target::Workflow(nw) => next_ranges.push((nw, p)),
                     }
@@ -195,7 +175,7 @@ fn parse_target(input: &str) -> nom::IResult<&str, Target> {
     use nom::character::complete::{alpha1, char};
     use nom::combinator::{map, value};
     alt((
-        value(Target::Accpet, char('A')),
+        value(Target::Accept, char('A')),
         value(Target::Reject, char('R')),
         map(alpha1, |w| Target::Workflow(w)),
     ))(input)
@@ -230,7 +210,7 @@ enum Category {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Target<'a> {
-    Accpet,
+    Accept,
     Reject,
     Workflow(&'a str),
 }
@@ -251,10 +231,38 @@ struct PartRange {
     s: Range<NumTy>,
 }
 
+impl<'a> Workflow<'a> {
+    fn process(&self, part: &Part) -> Target<'a> {
+        self.rules
+            .iter()
+            .find(|r| r.condition.apply(part))
+            .expect("Last rule should always apply")
+            .target
+    }
+}
+
 impl Condition {
-    fn apply(&self, part: &PartRange) -> (Option<PartRange>, Option<PartRange>) {
+    fn apply(&self, part: &Part) -> bool {
         match self {
-            Condition::Always => (Some(part.clone()), None),
+            Condition::Always => true,
+            Condition::Greater(c, cmp) | Condition::Less(c, cmp) => {
+                let val = match c {
+                    Category::X => &part.x,
+                    Category::M => &part.m,
+                    Category::A => &part.a,
+                    Category::S => &part.s,
+                };
+                if let Condition::Greater(_, _) = self {
+                    val > cmp
+                } else {
+                    val < cmp
+                }
+            }
+        }
+    }
+    fn apply_range(&self, part: PartRange) -> (Option<PartRange>, Option<PartRange>) {
+        match self {
+            Condition::Always => (Some(part), None),
             Condition::Less(category, limit) => {
                 let val = match category {
                     Category::X => &part.x,
@@ -263,9 +271,9 @@ impl Condition {
                     Category::S => &part.s,
                 };
                 if val.end <= *limit {
-                    (Some(part.clone()), None)
+                    (Some(part), None)
                 } else if val.start >= *limit {
-                    (None, Some(part.clone()))
+                    (None, Some(part))
                 } else {
                     let matching = val.start..*limit;
                     let not_matching = *limit..val.end;
@@ -277,7 +285,7 @@ impl Condition {
                             }),
                             Some(PartRange {
                                 x: not_matching,
-                                ..part.clone()
+                                ..part
                             }),
                         ),
                         Category::M => (
@@ -287,7 +295,7 @@ impl Condition {
                             }),
                             Some(PartRange {
                                 m: not_matching,
-                                ..part.clone()
+                                ..part
                             }),
                         ),
                         Category::A => (
@@ -297,7 +305,7 @@ impl Condition {
                             }),
                             Some(PartRange {
                                 a: not_matching,
-                                ..part.clone()
+                                ..part
                             }),
                         ),
                         Category::S => (
@@ -307,7 +315,7 @@ impl Condition {
                             }),
                             Some(PartRange {
                                 s: not_matching,
-                                ..part.clone()
+                                ..part
                             }),
                         ),
                     }
@@ -321,9 +329,9 @@ impl Condition {
                     Category::S => &part.s,
                 };
                 if *limit <= val.start {
-                    (Some(part.clone()), None)
+                    (Some(part), None)
                 } else if val.end <= *limit + 1 {
-                    (None, Some(part.clone()))
+                    (None, Some(part))
                 } else {
                     let matching = *limit + 1..val.end;
                     let not_matching = val.start..*limit + 1;
@@ -335,7 +343,7 @@ impl Condition {
                             }),
                             Some(PartRange {
                                 x: not_matching,
-                                ..part.clone()
+                                ..part
                             }),
                         ),
                         Category::M => (
@@ -345,7 +353,7 @@ impl Condition {
                             }),
                             Some(PartRange {
                                 m: not_matching,
-                                ..part.clone()
+                                ..part
                             }),
                         ),
                         Category::A => (
@@ -355,7 +363,7 @@ impl Condition {
                             }),
                             Some(PartRange {
                                 a: not_matching,
-                                ..part.clone()
+                                ..part
                             }),
                         ),
                         Category::S => (
@@ -365,7 +373,7 @@ impl Condition {
                             }),
                             Some(PartRange {
                                 s: not_matching,
-                                ..part.clone()
+                                ..part
                             }),
                         ),
                     }
@@ -430,7 +438,7 @@ hdj{m>838:A,pv}
     }
 
     #[test]
-    fn test_apply() {
+    fn test_apply_range() {
         let part = PartRange {
             x: 1..4001,
             m: 1..4001,
@@ -438,7 +446,10 @@ hdj{m>838:A,pv}
             s: 1..4001,
         };
         let condition = Condition::Always;
-        assert_eq!((Some(part.clone()), None), condition.apply(&part));
+        assert_eq!(
+            (Some(part.clone()), None),
+            condition.apply_range(part.clone())
+        );
 
         let condition = Condition::Greater(Category::M, 2090);
         assert_eq!(
@@ -456,20 +467,32 @@ hdj{m>838:A,pv}
                     s: 1..4001,
                 })
             ),
-            condition.apply(&part)
+            condition.apply_range(part.clone())
         );
 
         let condition = Condition::Greater(Category::X, 4000);
-        assert_eq!((None, Some(part.clone())), condition.apply(&part));
+        assert_eq!(
+            (None, Some(part.clone())),
+            condition.apply_range(part.clone())
+        );
 
         let condition = Condition::Greater(Category::S, 1);
-        assert_eq!((Some(part.clone()), None), condition.apply(&part));
+        assert_eq!(
+            (Some(part.clone()), None),
+            condition.apply_range(part.clone())
+        );
 
         let condition = Condition::Less(Category::A, 4001);
-        assert_eq!((Some(part.clone()), None), condition.apply(&part));
+        assert_eq!(
+            (Some(part.clone()), None),
+            condition.apply_range(part.clone())
+        );
 
         let condition = Condition::Less(Category::A, 1);
-        assert_eq!((None, Some(part.clone())), condition.apply(&part));
+        assert_eq!(
+            (None, Some(part.clone())),
+            condition.apply_range(part.clone())
+        );
 
         let condition = Condition::Less(Category::M, 2090);
         assert_eq!(
@@ -487,7 +510,7 @@ hdj{m>838:A,pv}
                     s: 1..4001,
                 })
             ),
-            condition.apply(&part)
+            condition.apply_range(part.clone())
         );
     }
 }
