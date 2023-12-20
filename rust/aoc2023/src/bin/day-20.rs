@@ -1,4 +1,6 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+use num::integer::lcm;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
 type Modules<'a> = BTreeMap<&'a str, Module<'a>>;
 
 fn main() {
@@ -21,8 +23,8 @@ fn part1(input: &str) -> String {
         while let Some((cur_name, cur_signal, cur_tx)) = queue.pop_front() {
             pulses[cur_signal as usize] += 1;
             let Some(module) = modules.get(cur_name) else {
-            continue;
-        };
+                continue;
+            };
             match module.mtype {
                 ModuleType::Broadcaster => {
                     for &rx in module.receiver.iter() {
@@ -58,8 +60,91 @@ fn part1(input: &str) -> String {
 }
 
 fn part2(input: &str) -> String {
-    let _data = parse_input(input).unwrap().1;
-    "".to_string()
+    let data = parse_input(input).unwrap().1;
+    let modules = reformat_data(data);
+
+    let last_node = modules
+        .iter()
+        .find_map(|(&name, module)| {
+            if module.receiver.contains(&"rx") {
+                Some(name)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let targets = modules
+        .iter()
+        .filter_map(|(&name, module)| {
+            if module.receiver.contains(&last_node) {
+                Some(name)
+            } else {
+                None
+            }
+        })
+        .collect::<BTreeSet<_>>();
+
+    let mut state = initalize_state(&modules);
+    let mut presses: u64 = 0;
+    let mut result = BTreeMap::new();
+    loop {
+        presses += 1;
+        let mut queue = VecDeque::new();
+        queue.push_back(("broadcaster", false, ""));
+        while let Some((cur_name, cur_signal, cur_tx)) = queue.pop_front() {
+            if let Some(&target) = targets.get(cur_name) {
+                if cur_signal == false {
+                    if let None = result.get(target) {
+                        result.insert(target, presses);
+                    }
+
+                    if result.len() == targets.len() {
+                        return result
+                            .values()
+                            .copied()
+                            .reduce(|a, b| lcm(a, b))
+                            .unwrap()
+                            .to_string();
+                    }
+                }
+            }
+
+            let Some(module) = modules.get(cur_name) else {
+                if cur_signal {
+                    continue;
+                }
+                return presses.to_string();
+            };
+            match module.mtype {
+                ModuleType::Broadcaster => {
+                    for &rx in module.receiver.iter() {
+                        queue.push_back((rx, cur_signal, cur_name))
+                    }
+                }
+                ModuleType::FlipFlop => {
+                    if !cur_signal {
+                        if let State::FlipFlop(internal_state) = state.get_mut(cur_name).unwrap() {
+                            *internal_state = !*internal_state;
+                            for &rx in module.receiver.iter() {
+                                queue.push_back((rx, *internal_state, cur_name))
+                            }
+                        }
+                    }
+                }
+                ModuleType::Conjunction => {
+                    if let State::Conjunction(internal_state) = state.get_mut(cur_name).unwrap() {
+                        internal_state
+                            .entry(cur_tx)
+                            .and_modify(|el| *el = cur_signal);
+                        let new_signal = !internal_state.iter().all(|(_k, v)| *v);
+                        for &rx in module.receiver.iter() {
+                            queue.push_back((rx, new_signal, cur_name))
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,14 +184,13 @@ fn initalize_state<'a>(modules: &'a Modules) -> BTreeMap<&'a str, State<'a>> {
     }))
 }
 
-#[allow(unused_imports)]
 fn parse_input(input: &str) -> nom::IResult<&str, Vec<Module>> {
     use nom::branch::alt;
-    use nom::bytes::complete::{is_a, tag, take};
-    use nom::character::complete::{alpha1, alphanumeric1, char, newline, space1};
-    use nom::combinator::{map, opt, value};
-    use nom::multi::{many1, separated_list1};
-    use nom::sequence::{delimited, preceded, separated_pair, terminated, tuple};
+    use nom::bytes::complete::tag;
+    use nom::character::complete::{alpha1, newline};
+    use nom::combinator::{map, opt};
+    use nom::multi::separated_list1;
+    use nom::sequence::{separated_pair, tuple};
 
     separated_list1(
         newline,
@@ -180,14 +264,5 @@ broadcaster -> a
 ";
         let result = part1(input);
         assert_eq!(result, "11687500");
-    }
-
-    #[test]
-    #[ignore = "not done yet"]
-    fn test_part2() {
-        let input = "\
-";
-        let result = part2(input);
-        assert_eq!(result, "todo");
     }
 }
