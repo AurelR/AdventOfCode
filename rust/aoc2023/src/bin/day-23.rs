@@ -1,11 +1,6 @@
-#![allow(unused_imports)]
 type NumTy = i32;
-use nom::character::complete::i32 as num_parser;
 type Position = (NumTy, NumTy);
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    ops::RangeInclusive,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 fn main() {
     let input = std::fs::read_to_string("data/input/input23.txt").unwrap();
@@ -89,13 +84,97 @@ fn part1(input: &str) -> String {
 }
 
 fn part2(input: &str) -> String {
-    let _data = parse_input(input);
-    "".to_string()
+    let (start, target, terrain) = parse_input(input);
+    let mut nodes = terrain
+        .iter()
+        .filter_map(|(p, _)| {
+            let neighbors = get_neigbors(*p)
+                .into_iter()
+                .filter(|n| match terrain.get(n) {
+                    Some(Tile::Path) => false,
+                    None => false,
+                    Some(_) => true,
+                })
+                .count();
+            if neighbors > 1 {
+                Some(*p)
+            } else {
+                None
+            }
+        })
+        .collect::<BTreeSet<_>>();
+    nodes.insert(start);
+    nodes.insert(target);
+
+    let edges = nodes
+        .iter()
+        .map(|n| (*n, find_neighbor_paths(*n, &nodes, &terrain)))
+        .collect::<BTreeMap<_, _>>();
+
+    let mut path = BTreeMap::new();
+    path.insert(start, 0);
+    let mut current_paths = Vec::new();
+    current_paths.push((start, path));
+
+    let mut final_paths = Vec::new();
+    while let Some((current, path)) = current_paths.pop() {
+        if current == target {
+            final_paths.push(path[&current]);
+            continue;
+        }
+        let costs = path[&current];
+        let neigbors = &edges[&current];
+        for (&n, cn) in neigbors {
+            if !path.contains_key(&n) {
+                let mut new_path = path.clone();
+                new_path.insert(n, costs + cn);
+                current_paths.push((n, new_path));
+            }
+        }
+    }
+    final_paths.into_iter().max().unwrap().to_string()
 }
 
 fn get_neigbors(pos: Position) -> [Position; 4] {
     let (x, y) = pos;
     [(x + 1, y), (x, y - 1), (x - 1, y), (x, y + 1)]
+}
+
+fn find_neighbor_paths(
+    pos: Position,
+    nodes: &BTreeSet<Position>,
+    terrain: &BTreeMap<Position, Tile>,
+) -> BTreeMap<Position, usize> {
+    let mut path = BTreeSet::new();
+    path.insert(pos);
+    let mut current_paths = Vec::new();
+    current_paths.push((pos, path));
+
+    let mut final_paths = BTreeMap::new();
+    while let Some((mut current, mut path)) = current_paths.pop() {
+        loop {
+            let neigbors = get_neigbors(current)
+                .into_iter()
+                .filter(|n| terrain.contains_key(n) && !path.contains(n))
+                .collect::<Vec<_>>();
+            if !neigbors.is_empty() {
+                current = neigbors[0];
+                for &n in &neigbors[1..] {
+                    let mut new_path = path.clone();
+                    new_path.insert(n);
+                    current_paths.push((n, new_path));
+                }
+                if nodes.contains(&current) {
+                    final_paths.insert(current, path.len());
+                    break;
+                }
+                path.insert(current);
+            } else {
+                break;
+            }
+        }
+    }
+    final_paths
 }
 
 fn parse_input(input: &str) -> (Position, Position, BTreeMap<Position, Tile>) {
@@ -131,13 +210,6 @@ fn parse_input(input: &str) -> (Position, Position, BTreeMap<Position, Tile>) {
     }
     target.0 -= 1;
     (start, target, terrain)
-    // use nom::bytes::complete::{is_a, tag};
-    // use nom::character::complete::{alpha1, alphanumeric1, char, newline, one_of};
-    // use nom::combinator::{map, opt, value};
-    // use nom::multi::{many1, separated_list1};
-    // use nom::sequence::{delimited, preceded, separated_pair, terminated, tuple};
-
-    // separated_list1(newline, tag("asdf"))(input)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -185,11 +257,33 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "not done yet"]
     fn test_part2() {
         let input = "\
+#.#####################
+#.......#########...###
+#######.#########.#.###
+###.....#.>.>.###.#.###
+###v#####.#v#.###.#.###
+###.>...#.#.#.....#...#
+###v###.#.#.#########.#
+###...#.#.#.......#...#
+#####.#.#.#######.#.###
+#.....#.#.#.......#...#
+#.#####.#.#.#########v#
+#.#...#...#...###...>.#
+#.#.#v#######v###.###v#
+#...#.>.#...>.>.#.###.#
+#####v#.#.###v#.#.###.#
+#.....#...#...#.#.#...#
+#.#########.###.#.#.###
+#...###...#...#...#.###
+###.###.#.###v#####v###
+#...#...#.#.>.>.#.>.###
+#.###.###.#.###.#.#v###
+#.....###...###...#...#
+#####################.#
 ";
         let result = part2(input);
-        assert_eq!(result, "todo");
+        assert_eq!(result, "154");
     }
 }
