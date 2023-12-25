@@ -3,6 +3,7 @@ type NumTy = f64;
 use nom::character::complete::i64 as num_parser;
 type NumPair = (NumTy, NumTy);
 use std::collections::{BTreeMap, BTreeSet};
+use z3::ast::{Ast, Int};
 
 fn main() {
     let input = std::fs::read_to_string("data/input/input24.txt").unwrap();
@@ -38,8 +39,24 @@ fn part1(input: &str) -> String {
 }
 
 fn part2(input: &str) -> String {
-    let _data = parse_input(input).unwrap().1;
-    "".to_string()
+    let data = parse_input(input).unwrap().1;
+    let ctx = z3::Context::new(&z3::Config::new());
+    let s = z3::Solver::new(&ctx);
+    let [fx,fy,fz,fdx,fdy,fdz] = ["fx","fy","fz","fdx","fdy","fdz"].map(|v| Int::new_const(&ctx, v));
+  
+    let zero = Int::from_i64(&ctx, 0);
+    for (i, hs) in data.into_iter().enumerate() {
+      let [x,y,z,dx,dy,dz] = [hs.position.x,hs.position.y,hs.position.z,hs.velocity.x,hs.velocity.y,hs.velocity.z].map(|v| Int::from_i64(&ctx, v as _));
+      let t = Int::new_const(&ctx, format!("t{i}"));
+      s.assert(&t.ge(&zero));
+      s.assert(&((&x + &dx * &t)._eq(&(&fx + &fdx * &t))));
+      s.assert(&((&y + &dy * &t)._eq(&(&fy + &fdy * &t))));
+      s.assert(&((&z + &dz * &t)._eq(&(&fz + &fdz * &t))));
+    }
+    assert_eq!(s.check(), z3::SatResult::Sat);
+    let model = s.get_model().unwrap();
+    let res = model.eval(&(&fx + &fy + &fz), true).unwrap();
+    res.as_i64().unwrap().to_string()
 }
 
 fn parse_input(input: &str) -> nom::IResult<&str, Vec<Hailstone>> {
