@@ -73,15 +73,12 @@ fn search(
         return c;
     }
 
-    if states.is_empty() {
-        return match (inside, counts.len()) {
-            (None, 0) => 1,
-            (Some(c), 1) if c == counts[0] => 1,
-            _ => 0,
-        };
-    }
-    if counts.is_empty() && inside.is_some() {
-        return 0;
+    match (states.len(), inside, counts.len()) {
+        (0, None, 0) => return 1,
+        (0, Some(c), 1) if c == counts[0] => return 1,
+        (0, _, _) => return 0,
+        (_, Some(_), 0) => return 0,
+        _ => {}
     }
 
     let result = match (states[0], inside) {
@@ -90,13 +87,10 @@ fn search(
         (State::Working, Some(_)) => search(&states[1..], &counts[1..], None, cache),
         (State::Broken, None) => search(&states[1..], counts, Some(1), cache),
         (State::Broken, Some(c)) => search(&states[1..], counts, Some(c + 1), cache),
-        (State::Unknown, Some(c)) => {
-            let mut result = search(&states[1..], counts, Some(c + 1), cache);
-            if c == counts[0] {
-                result += search(&states[1..], &counts[1..], None, cache)
-            }
-            result
+        (State::Unknown, Some(c)) if c != counts[0] => {
+            search(&states[1..], counts, Some(c + 1), cache)
         }
+        (State::Unknown, Some(_)) => search(&states[1..], &counts[1..], None, cache),
         (State::Unknown, None) => {
             search(&states[1..], counts, Some(1), cache) + search(&states[1..], counts, None, cache)
         }
