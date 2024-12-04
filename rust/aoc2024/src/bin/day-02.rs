@@ -12,7 +12,10 @@ fn main() {
 fn part1(input: &str) -> String {
     let mut safe = 0;
     for l in input.lines() {
-        let nums = l.split_ascii_whitespace().map(|n| n.parse::<NumTy>().unwrap()).collect::<Vec<_>>();
+        let nums = l
+            .split_ascii_whitespace()
+            .map(|n| n.parse::<NumTy>().unwrap())
+            .collect::<Vec<_>>();
         if is_safe(&nums) {
             safe += 1;
         }
@@ -23,7 +26,10 @@ fn part1(input: &str) -> String {
 fn part2(input: &str) -> String {
     let mut safe = 0;
     'outer: for l in input.lines() {
-        let nums = l.split_ascii_whitespace().map(|n| n.parse::<NumTy>().unwrap()).collect::<Vec<_>>();
+        let nums = l
+            .split_ascii_whitespace()
+            .map(|n| n.parse::<NumTy>().unwrap())
+            .collect::<Vec<_>>();
         if is_safe(&nums) {
             safe += 1;
             continue;
@@ -45,17 +51,17 @@ fn is_safe(nums: &[NumTy]) -> bool {
     let mut max_diff = 0;
     let mut inc = false;
     let mut dec = false;
-    for (a,b) in nums.iter().tuple_windows() {
+    for (a, b) in nums.iter().tuple_windows() {
         let diff = a.abs_diff(*b);
         min_diff = min_diff.min(diff);
         max_diff = max_diff.max(diff);
         match a.cmp(b) {
             std::cmp::Ordering::Less => dec = true,
-            std::cmp::Ordering::Equal => {},
+            std::cmp::Ordering::Equal => {}
             std::cmp::Ordering::Greater => inc = true,
         }
     }
-    if min_diff >= 1 && max_diff <= 3 && ( inc ^ dec) {
+    if min_diff >= 1 && max_diff <= 3 && (inc ^ dec) {
         true
     } else {
         false

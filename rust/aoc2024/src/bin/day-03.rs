@@ -12,19 +12,19 @@ fn main() {
 
 fn part1(input: &str) -> String {
     let re = Regex::new(r"mul\(([0-9]{1,3}),([0-9]{1,3})\)").unwrap();
-    let mut result= 0;
+    let mut result = 0;
     for l in input.lines() {
         for m in re.captures_iter(l) {
             result += m[1].parse::<NumTy>().unwrap() * m[2].parse::<NumTy>().unwrap()
         }
-   }
-   result.to_string()
+    }
+    result.to_string()
 }
 
 fn part2(input: &str) -> String {
     let re = Regex::new(r"mul\(([0-9]{1,3}),([0-9]{1,3})\)|do\(\)|don't\(\)").unwrap();
     let mut enabled = true;
-    let mut result= 0;
+    let mut result = 0;
     for l in input.lines() {
         for m in re.captures_iter(l) {
             if &m[0] == "do()" {
@@ -35,8 +35,8 @@ fn part2(input: &str) -> String {
                 result += m[1].parse::<NumTy>().unwrap() * m[2].parse::<NumTy>().unwrap()
             }
         }
-   }
-   result.to_string()
+    }
+    result.to_string()
 }
 
 #[cfg(test)]
