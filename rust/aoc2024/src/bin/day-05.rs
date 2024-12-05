@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
-use nom::{bytes::complete::tag, character::complete::anychar};
 type NumTy = i32;
 type Set = BTreeSet<NumTy>;
 type Map = BTreeMap<NumTy, Set>;
@@ -22,7 +21,7 @@ fn part1(input: &str) -> String {
         check.entry(rl).or_default().insert(rr);
     }
 
-    let mut correct_updates = Vec::new();
+    let mut result = 0;
 
     'outer: for update in &updates {
         let mut seen = Set::new();
@@ -32,30 +31,56 @@ fn part1(input: &str) -> String {
             }
             seen.insert(*n);
         }
-        correct_updates.push(update);
-    }
-
-    let mut result = 0;
-    for u in correct_updates {
-        result += u[u.len() / 2];
+        result += update[update.len() / 2];
     }
 
     result.to_string()
 }
 
 fn part2(input: &str) -> String {
-    "".to_string()
+    let (rules, updates) = parse(input).unwrap().1;
+
+    let mut check = Map::new();
+    for &(rl, rr) in &rules {
+        check.entry(rl).or_default().insert(rr);
+    }
+
+    let mut result = 0;
+    for update in &updates {
+        let mut sorted = update.clone();
+        sorted.sort_by(|a, b| {
+            if a == b {
+                std::cmp::Ordering::Equal
+            } else {
+                match check.get(a) {
+                    Some(greater) => {
+                        if greater.contains(b) {
+                            std::cmp::Ordering::Less
+                        } else {
+                            std::cmp::Ordering::Greater
+                        }
+                    }
+                    None => std::cmp::Ordering::Greater,
+                }
+            }
+        });
+        if update != &sorted {
+            result += sorted[sorted.len() / 2];
+        }
+    }
+    result.to_string()
 }
 
-fn parse(input: &str) -> nom::IResult<&str,(Vec<(NumTy,NumTy)>, Vec<Vec<NumTy>>)> {
-    use nom::sequence::separated_pair;
-    use nom::multi::separated_list1;
+fn parse(input: &str) -> nom::IResult<&str, (Vec<(NumTy, NumTy)>, Vec<Vec<NumTy>>)> {
+    use nom::bytes::complete::tag;
     use nom::character::complete::i32 as int32;
-    separated_pair( 
-        separated_list1(tag("\n"),separated_pair(int32, tag("|"), int32)),
-          tag("\n\n"), 
-          separated_list1(tag("\n"), separated_list1(tag(","), int32))
-        )(input)
+    use nom::multi::separated_list1;
+    use nom::sequence::separated_pair;
+    separated_pair(
+        separated_list1(tag("\n"), separated_pair(int32, tag("|"), int32)),
+        tag("\n\n"),
+        separated_list1(tag("\n"), separated_list1(tag(","), int32)),
+    )(input)
 }
 
 #[cfg(test)]
