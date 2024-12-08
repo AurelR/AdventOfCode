@@ -20,12 +20,12 @@ fn part1(input: &str) -> String {
     let mut visited = Set::new();
     loop {
         visited.insert(pos);
-        let mut new_pos = (pos.0 + dir.0, pos.1 + dir.1);
+        let new_pos = (pos.0 + dir.0, pos.1 + dir.1);
         if obstructions.contains(&new_pos) {
             dir = rotate_right(dir);
-            new_pos = (pos.0 + dir.0, pos.1 + dir.1);
+        } else {
+            pos = new_pos;
         }
-        pos = new_pos;
         if !rx.contains(&pos.0) || !ry.contains(&pos.1) {
             break;
         }
@@ -44,12 +44,12 @@ fn part2(input: &str) -> String {
     let mut dir = start_dir;
     loop {
         visited.insert(pos);
-        let mut new_pos = (pos.0 + dir.0, pos.1 + dir.1);
+        let new_pos = (pos.0 + dir.0, pos.1 + dir.1);
         if obstructions.contains(&new_pos) {
             dir = rotate_right(dir);
-            new_pos = (pos.0 + dir.0, pos.1 + dir.1);
+        } else {
+            pos = new_pos;
         }
-        pos = new_pos;
         if !rx.contains(&pos.0) || !ry.contains(&pos.1) {
             break;
         }
