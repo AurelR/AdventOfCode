@@ -1,10 +1,8 @@
-use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
 type NumTy = i32;
 type Pos = (NumTy, NumTy);
 type Set = BTreeSet<Pos>;
-//type Map = BTreeMap<NumTy, Set>;
 
 fn main() {
     let input = std::fs::read_to_string("data/input/input06.txt").unwrap();
@@ -16,6 +14,8 @@ fn main() {
 
 fn part1(input: &str) -> String {
     let (mut pos, mut dir, max, obstructions) = parse(input);
+    let rx = 0..=max.0;
+    let ry = 0..=max.1;
 
     let mut visited = Set::new();
     loop {
@@ -26,7 +26,7 @@ fn part1(input: &str) -> String {
             new_pos = (pos.0 + dir.0, pos.1 + dir.1);
         }
         pos = new_pos;
-        if pos.0 < 0 || pos.0 > max.0 || pos.1 < 0 || pos.1 > max.1 {
+        if !rx.contains(&pos.0) || !ry.contains(&pos.1) {
             break;
         }
     }
@@ -35,8 +35,35 @@ fn part1(input: &str) -> String {
 }
 
 fn part2(input: &str) -> String {
-    let mut result = 0;
-    result.to_string()
+    let (start_pos, start_dir, max, obstructions) = parse(input);
+    let rx = 0..=max.0;
+    let ry = 0..=max.1;
+
+    let mut visited = Set::new();
+    let mut pos = start_pos;
+    let mut dir = start_dir;
+    loop {
+        visited.insert(pos);
+        let mut new_pos = (pos.0 + dir.0, pos.1 + dir.1);
+        if obstructions.contains(&new_pos) {
+            dir = rotate_right(dir);
+            new_pos = (pos.0 + dir.0, pos.1 + dir.1);
+        }
+        pos = new_pos;
+        if !rx.contains(&pos.0) || !ry.contains(&pos.1) {
+            break;
+        }
+    }
+    visited.remove(&start_pos);
+    let mut result = Vec::new();
+    for o in &visited {
+        let mut obs = obstructions.clone();
+        obs.insert(*o);
+        if find_loop(start_pos, start_dir, max, &obs) {
+            result.push(*o);
+        }
+    }
+    result.len().to_string()
 }
 
 fn parse(input: &str) -> (Pos, Pos, Pos, Set) {
@@ -64,6 +91,25 @@ fn rotate_right(dir: Pos) -> Pos {
     (-dir.1, dir.0)
 }
 
+fn find_loop(mut pos: Pos, mut dir: Pos, max: Pos, obstructions: &Set) -> bool {
+    let rx = 0..=max.0;
+    let ry = 0..=max.1;
+    let mut visited = BTreeSet::<(Pos, Pos)>::new();
+    while visited.insert((pos, dir)) {
+        let new_pos = (pos.0 + dir.0, pos.1 + dir.1);
+        if obstructions.contains(&new_pos) {
+            dir = rotate_right(dir);
+        } else {
+            pos = new_pos;
+        }
+
+        if !rx.contains(&pos.0) || !ry.contains(&pos.1) {
+            return false;
+        }
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use crate::*;
@@ -88,10 +134,19 @@ mod tests {
 
     #[test]
     fn test_part2() {
-        let input = "
+        let input = "....#.....
+.........#
+..........
+..#.......
+.......#..
+..........
+.#..^.....
+........#.
+#.........
+......#...
 ";
 
         let result = part2(input);
-        assert_eq!("000", result);
+        assert_eq!("6", result);
     }
 }
