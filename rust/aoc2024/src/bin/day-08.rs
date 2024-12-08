@@ -31,23 +31,49 @@ fn part1(input: &str) -> String {
             if rx.contains(&r1.0) && ry.contains(&r1.1){
                 result.insert(r1);
             }
-            
+
             
             if rx.contains(&r2.0) && ry.contains(&r2.1){
                 result.insert(r2);
             }
         }
     }
-    //dbg!(&result);
     result.len().to_string()
 }
 
 fn part2(input: &str) -> String {
-    // let (max, base_map) = parse(input);
-    // let map = invert(&base_map);
-    // let mut result = 0;
-    // result.to_string()
-    "".to_string()
+    let (max, base_map) = parse(input);
+    let rx = 0..= max.0;
+    let ry = 0..=max.1;
+    let map = invert(&base_map);
+    let mut result = BTreeSet::<Pos>::new();
+    for (_, p) in map.into_iter() {
+        for c in p.into_iter().combinations(2) {
+            let dx = c[0].0 - c[1].0;
+            let dy = c[0].1 - c[1].1;
+
+            let mut r1 = c[0];
+            loop {
+                if rx.contains(&r1.0) && ry.contains(&r1.1){
+                    result.insert(r1);
+                    r1 = (r1.0 + dx, r1.1 +dy);
+                } else {
+                    break;
+                }
+            }
+
+            let mut r2 = c[1];
+            loop {
+                if rx.contains(&r2.0) && ry.contains(&r2.1){
+                    result.insert(r2);
+                    r2 = (r2.0 - dx, r2.1 -dy);
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+    result.len().to_string()
 }
 
 fn invert(base_map: &BTreeMap<(i32, i32), char>) -> BTreeMap<char, Vec<Pos>> {
@@ -99,7 +125,25 @@ mod tests {
     }
 
     #[test]
-    fn test_part2() {
+    fn test_part2_a() {
+        let input = "T.........
+...T......
+.T........
+..........
+..........
+..........
+..........
+..........
+..........
+..........
+";
+
+        let result = part2(input);
+        assert_eq!("9", result);
+    }
+
+    #[test]
+    fn test_part2_b() {
         let input = "............
 ........0...
 .....0......
@@ -115,6 +159,6 @@ mod tests {
 ";
 
         let result = part2(input);
-        assert_eq!("000", result);
+        assert_eq!("34", result);
     }
 }
