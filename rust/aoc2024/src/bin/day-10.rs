@@ -1,11 +1,9 @@
-use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
 type NumTy = i32;
 type Pos = (NumTy, NumTy);
 type Set = BTreeSet<Pos>;
-//type Map = BTreeMap<Pos, Set>;
 type Map = BTreeMap<Pos, NumTy>;
 
 fn main() {
@@ -17,7 +15,7 @@ fn main() {
 }
 
 fn part1(input: &str) -> String {
-    let (max, map) = parse(input);
+    let (_max, map) = parse(input);
 
     let mut result = 0;
     for (&start, &height) in map.iter() {
@@ -32,7 +30,7 @@ fn part1(input: &str) -> String {
 }
 
 fn part2(input: &str) -> String {
-    let (max, map) = parse(input);
+    let (_max, map) = parse(input);
 
     let mut result = 0;
     for (&start, &height) in map.iter() {
@@ -50,7 +48,7 @@ fn parse(input: &str) -> (Pos, Map) {
     let mut heights = Map::new();
     for (y, line) in input.lines().enumerate() {
         for (x, c) in line.as_bytes().iter().enumerate() {
-                heights.insert((x as NumTy, y as NumTy), (c - 48) as NumTy);
+            heights.insert((x as NumTy, y as NumTy), (c - 48) as NumTy);
             x_max = x_max.max(x as NumTy);
         }
         y_max = y_max.max(y as NumTy);

@@ -4,8 +4,6 @@ use std::collections::BTreeSet;
 
 type NumTy = i32;
 type Pos = (NumTy, NumTy);
-//type Set = BTreeSet<Pos>;
-//type Map = BTreeMap<Pos, Set>;
 type Map = BTreeMap<Pos, char>;
 
 fn main() {
@@ -18,7 +16,7 @@ fn main() {
 
 fn part1(input: &str) -> String {
     let (max, base_map) = parse(input);
-    let rx = 0..= max.0;
+    let rx = 0..=max.0;
     let ry = 0..=max.1;
     let map = invert(&base_map);
     let mut result = BTreeSet::<Pos>::new();
@@ -26,14 +24,13 @@ fn part1(input: &str) -> String {
         for c in p.into_iter().combinations(2) {
             let dx = c[0].0 - c[1].0;
             let dy = c[0].1 - c[1].1;
-            let r1 = (c[0].0 + dx, c[0].1 +dy);
-            let r2 = (c[1].0 - dx, c[1].1 -dy);
-            if rx.contains(&r1.0) && ry.contains(&r1.1){
+            let r1 = (c[0].0 + dx, c[0].1 + dy);
+            let r2 = (c[1].0 - dx, c[1].1 - dy);
+            if rx.contains(&r1.0) && ry.contains(&r1.1) {
                 result.insert(r1);
             }
 
-            
-            if rx.contains(&r2.0) && ry.contains(&r2.1){
+            if rx.contains(&r2.0) && ry.contains(&r2.1) {
                 result.insert(r2);
             }
         }
@@ -43,7 +40,7 @@ fn part1(input: &str) -> String {
 
 fn part2(input: &str) -> String {
     let (max, base_map) = parse(input);
-    let rx = 0..= max.0;
+    let rx = 0..=max.0;
     let ry = 0..=max.1;
     let map = invert(&base_map);
     let mut result = BTreeSet::<Pos>::new();
@@ -54,9 +51,9 @@ fn part2(input: &str) -> String {
 
             let mut r1 = c[0];
             loop {
-                if rx.contains(&r1.0) && ry.contains(&r1.1){
+                if rx.contains(&r1.0) && ry.contains(&r1.1) {
                     result.insert(r1);
-                    r1 = (r1.0 + dx, r1.1 +dy);
+                    r1 = (r1.0 + dx, r1.1 + dy);
                 } else {
                     break;
                 }
@@ -64,9 +61,9 @@ fn part2(input: &str) -> String {
 
             let mut r2 = c[1];
             loop {
-                if rx.contains(&r2.0) && ry.contains(&r2.1){
+                if rx.contains(&r2.0) && ry.contains(&r2.1) {
                     result.insert(r2);
-                    r2 = (r2.0 - dx, r2.1 -dy);
+                    r2 = (r2.0 - dx, r2.1 - dy);
                 } else {
                     break;
                 }

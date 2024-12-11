@@ -75,8 +75,10 @@ fn parse(input: &str) -> (Pos, Pos, Pos, Set) {
     for (y, line) in input.lines().enumerate() {
         for (x, c) in line.as_bytes().iter().enumerate() {
             match c {
-                b'.' => {},
-                b'#' => {obstructions.insert((x as NumTy, y as NumTy));},
+                b'.' => {}
+                b'#' => {
+                    obstructions.insert((x as NumTy, y as NumTy));
+                }
                 b'^' => start = (x as NumTy, y as NumTy),
                 _ => panic!("Invalid Input"),
             }

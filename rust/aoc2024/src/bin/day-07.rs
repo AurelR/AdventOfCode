@@ -1,6 +1,6 @@
 use itertools::Itertools;
-use std::iter::repeat_n;
 use nom::character::complete::newline;
+use std::iter::repeat_n;
 
 type NumTy = i64;
 use nom::character::complete::i64 as int;
@@ -17,12 +17,14 @@ fn part1(input: &str) -> String {
     let data = parse(input).unwrap().1;
     let mut result = 0;
     'outer: for (target, values) in data {
-        for p in repeat_n([Operator::Plus, Operator::Mul], values.len() - 1).multi_cartesian_product() {
+        for p in
+            repeat_n([Operator::Plus, Operator::Mul], values.len() - 1).multi_cartesian_product()
+        {
             let eval = evlatuate(&p, &values);
-           if eval == target {
-            result += target;
-            continue 'outer;
-           } 
+            if eval == target {
+                result += target;
+                continue 'outer;
+            }
         }
     }
     result.to_string()
@@ -32,13 +34,17 @@ fn part2(input: &str) -> String {
     let data = parse(input).unwrap().1;
     let mut result = 0;
     'outer: for (target, values) in data {
-
-        for p in repeat_n([Operator::Plus, Operator::Mul, Operator::Concat], values.len() - 1).multi_cartesian_product() {
+        for p in repeat_n(
+            [Operator::Plus, Operator::Mul, Operator::Concat],
+            values.len() - 1,
+        )
+        .multi_cartesian_product()
+        {
             let eval = evlatuate(&p, &values);
-           if eval == target {
-            result += target;
-            continue 'outer;
-           } 
+            if eval == target {
+                result += target;
+                continue 'outer;
+            }
         }
     }
     result.to_string()
@@ -48,12 +54,10 @@ fn parse(input: &str) -> nom::IResult<&str, Vec<(NumTy, Vec<NumTy>)>> {
     use nom::bytes::complete::tag;
     use nom::multi::separated_list1;
     use nom::sequence::separated_pair;
-    separated_list1(newline,
-    separated_pair(
-        int,
-        tag(": "),
-        separated_list1(tag(" "), int),
-    ))(input)
+    separated_list1(
+        newline,
+        separated_pair(int, tag(": "), separated_list1(tag(" "), int)),
+    )(input)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -66,11 +70,11 @@ enum Operator {
 fn evlatuate(ops: &[Operator], values: &[NumTy]) -> NumTy {
     let mut it = values.iter();
     let mut result = *it.next().unwrap();
-    for (op, v ) in ops.iter().zip_eq(it) {
+    for (op, v) in ops.iter().zip_eq(it) {
         match op {
             Operator::Plus => result += v,
             Operator::Mul => result *= v,
-            Operator::Concat => result = (result.to_string() + &v.to_string()).parse().unwrap()
+            Operator::Concat => result = (result.to_string() + &v.to_string()).parse().unwrap(),
         }
     }
     result
