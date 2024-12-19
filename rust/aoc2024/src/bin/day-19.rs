@@ -1,4 +1,7 @@
+use std::collections::BTreeMap;
+
 use regex::Regex;
+type Cache<'a> = BTreeMap<&'a str, usize>;
 
 fn main() {
     let input = std::fs::read_to_string("data/input/input19.txt").unwrap();
@@ -10,17 +13,41 @@ fn main() {
 
 fn part1(input: &str) -> String {
     let (colors, towels) = parse(input).unwrap().1;
-    let mut re_str = String::from("^(");
-    re_str += &colors.join("|");
-    re_str += ")*$";
-
-    let re = Regex::new(&re_str).unwrap();
+    let re = Regex::new(&format!("^({})*$", colors.join("|"))).unwrap();
     let result = towels.into_iter().filter(|t| re.is_match(t)).count();
     result.to_string()
 }
 
 fn part2(input: &str) -> String {
-    "".to_string()
+    let (colors, towels) = parse(input).unwrap().1;
+    let mut cache = Cache::new();
+    towels
+        .into_iter()
+        .map(|t| count_matches(t, &colors, &mut cache))
+        .sum::<usize>()
+        .to_string()
+}
+
+fn count_matches<'a, 'b>(t: &'a str, colors: &[&str], cache: &'b mut Cache<'a>) -> usize {
+    if t == "" {
+        1
+    } else if let Some(&count) = cache.get(t) {
+        count
+    } else {
+        colors
+            .iter()
+            .map(|c| {
+                if t.starts_with(c) {
+                    let rest_t = &t[c.len()..];
+                    let count = count_matches(rest_t, colors, cache);
+                    cache.insert(rest_t, count);
+                    count
+                } else {
+                    0
+                }
+            })
+            .sum()
+    }
 }
 
 fn parse(input: &str) -> nom::IResult<&str, (Vec<&str>, Vec<&str>)> {
