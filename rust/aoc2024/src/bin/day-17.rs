@@ -1,6 +1,6 @@
-type NumTy = u32;
+type NumTy = u64;
 
-use nom::character::complete::u32 as int;
+use nom::character::complete::u64 as int;
 
 fn main() {
     let input = std::fs::read_to_string("data/input/input17.txt").unwrap();
@@ -11,7 +11,21 @@ fn main() {
 }
 
 fn part1(input: &str) -> String {
-    let (mut reg_a, mut reg_b, mut reg_c, instructions) = parse(input).unwrap().1;
+    let (reg_a, reg_b, reg_c, instructions) = parse(input).unwrap().1;
+    let output = run_program(&instructions, reg_a, reg_b, reg_c);
+    output
+        .into_iter()
+        .map(|i| i.to_string())
+        .collect::<Vec<String>>()
+        .join(",")
+}
+
+fn run_program(
+    instructions: &Vec<NumTy>,
+    mut reg_a: NumTy,
+    mut reg_b: NumTy,
+    mut reg_c: NumTy,
+) -> Vec<NumTy> {
     let mut output = Vec::<NumTy>::new();
     let mut ip = 0;
     while let Some(&instr) = instructions.get(ip) {
@@ -23,16 +37,28 @@ fn part1(input: &str) -> String {
         ip = result.3;
     }
     output
-        .into_iter()
-        .map(|i| i.to_string())
-        .collect::<Vec<String>>()
-        .join(",")
 }
 
 fn part2(input: &str) -> String {
-    let data = parse(input).unwrap().1;
-    let mut result = 0;
-    result.to_string()
+    let (_reg_a, reg_b, reg_c, instructions) = parse(input).unwrap().1;
+
+    // only works for my input, checked longer suffixes step by step
+    for i in 1000..100000000 {
+        for l in [0o132, 0o522] {
+            let j = 0o621;
+            for k in [0o633, 0o635] {
+                let reg_a = i<< 27 | l << 18 | j << 9 | k;
+                let output = run_program(&instructions, reg_a, reg_b, reg_c);
+                // if instructions[0..13] == output[0..13] {
+                //     println!("{reg_a:>16} {reg_a:>16o} {:?}", output);
+                // }
+                if output == instructions {
+                    return reg_a.to_string();
+                }
+            }
+        }
+    }
+    "".to_string()
 }
 
 fn parse(input: &str) -> nom::IResult<&str, (NumTy, NumTy, NumTy, Vec<NumTy>)> {
@@ -76,7 +102,7 @@ fn perform_instruction(
         // adv
         0 => {
             let o = combo_value(reg_a, reg_b, reg_c, operand);
-            reg_a = reg_a / 2u32.pow(o as u32);
+            reg_a = reg_a / 2u64.pow(o as u32);
         }
         // bxl
         1 => {
@@ -103,12 +129,12 @@ fn perform_instruction(
         // bdv
         6 => {
             let o = combo_value(reg_a, reg_b, reg_c, operand);
-            reg_b = reg_a / 2u32.pow(o as u32);
+            reg_b = reg_a / 2u64.pow(o as u32);
         }
         // cdv
         7 => {
             let o = combo_value(reg_a, reg_b, reg_c, operand);
-            reg_c = reg_a / 2u32.pow(o as u32);
+            reg_c = reg_a / 2u64.pow(o as u32);
         }
         _ => unimplemented!("Illegal instruction {instr} at {ip}"),
     }
