@@ -1,4 +1,11 @@
-type NumTy = u64;
+use itertools::Itertools;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    iter::successors,
+};
+
+type NumTy = i64;
+type SequenceMap = BTreeMap<(NumTy, NumTy, NumTy, NumTy), NumTy>;
 
 fn main() {
     let input = std::fs::read_to_string("data/input/input22.txt").unwrap();
@@ -22,8 +29,41 @@ fn part1(input: &str) -> String {
         .to_string()
 }
 
-fn part2(_input: &str) -> String {
-    "".to_string()
+fn part2(input: &str) -> String {
+    let numbers = parse(input);
+    let data = numbers
+        .into_iter()
+        .enumerate()
+        .map(|(i, num)| {
+            let smap = successors(Some(num), |n| Some(next_number(*n)))
+                .take(2001)
+                .map(|n| n % 10)
+                .tuple_windows()
+                .map(|(n0, n1, n2, n3, n4)| ((n1 - n0, n2 - n1, n3 - n2, n4 - n3), n4))
+                .fold(SequenceMap::new(), |mut map, (k, v)| {
+                    map.entry(k).or_insert(v);
+                    map
+                });
+            (i, num, smap)
+        })
+        .collect::<Vec<_>>();
+
+    let sequences = data
+        .iter()
+        .map(|(_i, _num, smap)| smap.keys().copied().collect::<BTreeSet<_>>())
+        .reduce(|last, next| last.union(&next).copied().collect())
+        .unwrap();
+
+    sequences
+        .iter()
+        .map(|s| {
+            data.iter()
+                .map(|(_i, _num, smap)| *smap.get(s).unwrap_or(&0))
+                .sum::<NumTy>()
+        })
+        .max()
+        .unwrap()
+        .to_string()
 }
 
 fn parse(input: &str) -> Vec<NumTy> {
@@ -92,12 +132,14 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "todo"]
     fn test_part2() {
-        let input = "
+        let input = "1
+2
+3
+2024
 ";
 
         let result = part2(input);
-        assert_eq!("0000000", result);
+        assert_eq!("23", result);
     }
 }
