@@ -55,21 +55,22 @@ fn part2(input: &str) -> String {
 
     let mut cliques = BTreeSet::new();
     while candiates.len() != 0 {
-        let mut new_candiates = BTreeSet::new();
-        'outer: for set in candiates {
-            let mut it = set.iter();
-            let first = *it.next().unwrap();
-            for &n in &adj_list[first] {
-                if it.clone().all(|&m| adj_list[m].contains(n)) {
-                    let mut new_candidate = set.clone();
-                    new_candidate.insert(n);
-                    new_candiates.insert(new_candidate);
-                    continue 'outer;
+        candiates = candiates
+            .into_iter()
+            .filter_map(|set| {
+                let mut it = set.iter();
+                let first = *it.next().unwrap();
+                for &n in &adj_list[first] {
+                    if it.clone().all(|&m| adj_list[m].contains(n)) {
+                        let mut new_candidate = set.clone();
+                        new_candidate.insert(n);
+                        return Some(new_candidate);
+                    }
                 }
-            }
-            cliques.insert(set);
-        }
-        candiates = new_candiates;
+                cliques.insert(set);
+                None
+            })
+            .collect();
     }
 
     let max = cliques
