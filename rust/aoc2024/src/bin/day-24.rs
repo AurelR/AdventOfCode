@@ -32,8 +32,73 @@ fn part1(input: &str) -> String {
         .to_string()
 }
 
-fn part2(_input: &str) -> String {
-    "".to_string()
+fn part2(input: &str) -> String {
+    let (mut values, mut ops) = parse(input).unwrap().1;
+
+    // manually found them by inspecting graph with graphviz
+    ops = ops
+        .into_iter()
+        .map(|o| match o {
+            ("jvj", Op::Xor, "mvs", "mkk") => ("jvj", Op::Xor, "mvs", "z10"),
+            ("mvs", Op::And, "jvj", "z10") => ("mvs", Op::And, "jvj", "mkk"),
+
+            ("vjh", Op::Or, "fhq", "z14") => ("vjh", Op::Or, "fhq", "qbw"),
+            ("ndm", Op::Xor, "tsp", "qbw") => ("ndm", Op::Xor, "tsp", "z14"),
+
+            ("y34", Op::And, "x34", "z34") => ("y34", Op::And, "x34", "wcb"),
+            ("jmq", Op::Xor, "mdh", "wcb") => ("jmq", Op::Xor, "mdh", "z34"),
+
+            ("x25", Op::Xor, "y25", "wjb") => ("x25", Op::Xor, "y25", "cvp"),
+            ("x25", Op::And, "y25", "cvp") => ("x25", Op::And, "y25", "wjb"),
+            _ => o,
+        })
+        .collect();
+
+    // println!("digraph Adder {{");
+    // for o in &ops {
+    //     let op = o.1.to_str();
+    //     println!("{0} -> \"{0} {2} {1}\"", o.0, o.2, op);
+    //     println!("{1} -> \"{0} {2} {1}\"", o.0, o.2, op);
+    //     println!("\"{0} {2} {1}\" -> {3}", o.0, o.2, op, o.3);
+    // }
+    // println!("}}");
+    while ops.len() != 0 {
+        ops.retain(|(l, op, r, t)| match (values.get(l), values.get(r)) {
+            (None, None) => true,
+            (None, Some(_)) => true,
+            (Some(_), None) => true,
+            (Some(vl), Some(vr)) => {
+                values.insert(*t, op.eval(*vl, *vr));
+                false
+            }
+        });
+    }
+    let x = values
+        .iter()
+        .filter(|(k, _v)| k.starts_with("x"))
+        .rev()
+        .fold(0, |c, n| c << 1 | n.1);
+
+    let y = values
+        .iter()
+        .filter(|(k, _v)| k.starts_with("y"))
+        .rev()
+        .fold(0, |c, n| c << 1 | n.1);
+
+    let z = values
+        .into_iter()
+        .filter(|(k, _v)| k.starts_with("z"))
+        .rev()
+        .fold(0, |c, n| c << 1 | n.1);
+    // eprintln!("{x:>46b}");
+    // eprintln!("{y:>46b}");
+    // eprintln!("{z:>46b}");
+    // eprintln!("{:>46b}",x+y);
+    // eprintln!("{:>46b}", z ^ (x + y));
+    assert_eq!(z, x + y);
+    let mut result = vec!["mkk", "z10", "z14", "qbw", "z34", "wcb", "wjb", "cvp"];
+    result.sort();
+    result.join(",")
 }
 
 fn parse(input: &str) -> nom::IResult<&str, (BTreeMap<&str, NumTy>, Vec<(&str, Op, &str, &str)>)> {
@@ -83,6 +148,15 @@ impl Op {
             Op::And => right & left,
             Op::Or => right | left,
             Op::Xor => right ^ left,
+        }
+    }
+
+    #[allow(dead_code)]
+    fn to_str(&self) -> &'static str {
+        match self {
+            Op::And => "AND",
+            Op::Or => "OR",
+            Op::Xor => "XOR",
         }
     }
 }
