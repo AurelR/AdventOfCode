@@ -1,7 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-//use itertools::Itertools;
-
 type NumTy = i32;
 type Pos = (NumTy, NumTy);
 type Map = BTreeMap<Pos, char>;
@@ -42,8 +40,76 @@ fn part1(input: &str) -> String {
     result.to_string()
 }
 
-fn part2(_input: &str) -> String {
-    "".to_string()
+fn part2(input: &str) -> String {
+    let map = parse(input);
+    let xmax = map.keys().map(|p| p.0).max().unwrap();
+    let ymax = map.keys().map(|p| p.1).max().unwrap();
+
+    let mut visited = BTreeSet::<Pos>::new();
+    let mut result = 0;
+    for (&pos, &plant) in &map {
+        if visited.contains(&pos) {
+            continue;
+        }
+        let mut region_stack = Vec::<Pos>::new();
+        let mut region = Set::new();
+        let mut area = 0;
+        region_stack.push(pos);
+        while let Some(pos) = region_stack.pop() {
+            if visited.contains(&pos) {
+                continue;
+            }
+            region.insert(pos);
+            let n = neighbors(&map, pos, plant);
+            area += 1;
+            visited.insert(pos);
+            region_stack.extend(n.into_iter().filter(|p| !visited.contains(p)));
+        }
+
+        let mut sides = 0;
+        for x in -1..=xmax + 1 {
+            let mut left_last = false;
+            let mut inside_last = false;
+            for y in -1..=ymax + 1 {
+                let left = region.contains(&(x - 1, y));
+                let inside = region.contains(&(x, y));
+                match (left_last, inside_last, left, inside) {
+                    (false, false, false, true) => sides += 1,
+                    (true, true, false, true) => sides += 1,
+                    (false, false, true, false) => sides += 1,
+                    (true, true, true, false) => sides += 1,
+                    (true, false, false, true) => sides += 1,
+                    (false, true, true, false) => sides += 1,
+                    _ => {}
+                }
+                left_last = left;
+                inside_last = inside;
+            }
+        }
+
+        for y in -1..=ymax + 1 {
+            let mut top_last = false;
+            let mut inside_last = false;
+            for x in -1..=xmax + 1 {
+                let top = region.contains(&(x, y - 1));
+                let inside = region.contains(&(x, y));
+                match (top_last, inside_last, top, inside) {
+                    (false, false, false, true) => sides += 1,
+                    (true, true, false, true) => sides += 1,
+                    (false, false, true, false) => sides += 1,
+                    (true, true, true, false) => sides += 1,
+                    (true, false, false, true) => sides += 1,
+                    (false, true, true, false) => sides += 1,
+                    _ => {}
+                }
+                top_last = top;
+                inside_last = inside;
+            }
+        }
+
+        result += area * sides;
+    }
+    result.to_string()
 }
 
 fn parse(input: &str) -> Map {
@@ -106,7 +172,46 @@ MMMISSJEEE
     }
 
     #[test]
-    fn test_part2() {
+    fn test_part2_a() {
+        let input = "AAAA
+BBCD
+BBCC
+EEEC
+";
+
+        let result = part2(input);
+        assert_eq!("80", result);
+    }
+
+    #[test]
+    fn test_part2_b() {
+        let input = "EEEEE
+EXXXX
+EEEEE
+EXXXX
+EEEEE
+";
+
+        let result = part2(input);
+        assert_eq!("236", result);
+    }
+
+    #[test]
+    fn test_part2_c() {
+        let input = "AAAAAA
+AAABBA
+AAABBA
+ABBAAA
+ABBAAA
+AAAAAA
+";
+
+        let result = part2(input);
+        assert_eq!("368", result);
+    }
+
+    #[test]
+    fn test_part2_full() {
         let input = "RRRRIICCFF
 RRRRIICCCF
 VVRRRCCFFF
